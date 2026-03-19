@@ -701,6 +701,7 @@ const wh=JSON.parse(localStorage.getItem(‘nx_whale’)||’[]’);if(wh.length
 
 // NAV
 function nav(n,btn){document.querySelectorAll(’.scr’).forEach(s=>s.classList.remove(‘active’));document.querySelectorAll(’.nb’).forEach(b=>b.classList.remove(‘active’));document.getElementById(‘scr-’+n).classList.add(‘active’);if(btn)btn.classList.add(‘active’);}
+window.nav=nav;
 
 // PRICE
 async function fetchPrice(){
@@ -1130,6 +1131,19 @@ function fl(n){if(!n)return’—’;if(n>=1e9)return(n/1e9).toFixed(2)+‘B’;
 function setOnline(on){const d=document.getElementById(‘sdot’),l=document.getElementById(‘connLbl’);if(S.failmode===‘emergency’){d.className=‘sdot’;return;}d.className=‘sdot’+(on?’ on’:’’);l.textContent=on?‘ONLINE’:‘OFFLINE’;}
 function log(type,msg){const c=document.getElementById(‘logC’),now=new Date().toLocaleTimeString(‘de-DE’);const cls={OK:‘lok’,ERR:‘lerr’,WARN:‘lwarn’,INFO:‘linfo’,WHALE:‘lwhale’}[type]||‘linfo’;const e=document.createElement(‘div’);e.className=‘le’;e.innerHTML=`<span class="lt">[${now}]</span> <span class="${cls}">[${type}] ${msg}</span>`;c.insertBefore(e,c.firstChild);while(c.children.length>100)c.removeChild(c.lastChild);}
 
+// Globale Funktionen für onclick-Handler
+window.nav=nav;window.selPair=selPair;window.fullAnalysis=fullAnalysis;
+window.whaleAnalysis=whaleAnalysis;window.loadOrderbook=loadOrderbook;
+window.runBacktest=runBacktest;window.setCM=setCM;window.wlAdd=wlAdd;
+window.wlRem=wlRem;window.wlScan=wlScan;window.autoScan=autoScan;
+window.toggleAutoScan=toggleAutoScan;window.setTF=setTF;
+window.execTrade=execTrade;window.closeMo=closeMo;window.confirmTrade=confirmTrade;
+window.recTrade=recTrade;window.setCapital=setCapital;window.addProfit=addProfit;
+window.setSafeMode=setSafeMode;window.setEmergency=setEmergency;
+window.deactivateEmerg=deactivateEmerg;window.runSelfHeal=runSelfHeal;
+window.saveTelegram=saveTelegram;window.testTelegram=testTelegram;
+window.loadNews=loadNews;window.saveKeys=saveKeys;window.delKeys=delKeys;
+window.saveRisk=saveRisk;window.togFeat=togFeat;window.testProxy=testProxy;
 init();
 </script>
 
