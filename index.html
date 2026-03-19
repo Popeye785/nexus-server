@@ -544,7 +544,8 @@ body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradi
   </div>
   <div class="card">
     <div class="ct">KAPITAL EINTRAGEN</div>
-    <div class="fg mt8"><label class="fl">GESAMTKAPITAL (USDT)</label><input class="fi" type="number" id="manCap" placeholder="z.B. 1000"></div>
+    <div class="fg mt8"><label class="fl">HANDELSKAPITAL (USDT) — frei wählbar</label><input class="fi" type="number" id="manCap" placeholder="z.B. 100"></div>
+    <div class="fg"><label class="fl">SPLIT SAFE % (0 = alles handelbar)</label><input class="fi" type="number" id="manSplit" placeholder="0" value="0"></div>
     <div class="fg"><label class="fl">GEWINN BUCHEN (USDT)</label><input class="fi" type="number" id="manProfit"></div>
     <div class="g2 mt8"><button class="btn btn-blue" onclick="setCapital()">SETZEN</button><button class="btn btn-buy" onclick="addProfit()">+ GEWINN</button></div>
   </div>
@@ -615,9 +616,11 @@ body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradi
   </div>
   <div class="card">
     <div class="ct">FEATURES</div>
-    <div class="tog-row"><div><div class="tog-lbl">Spot Trading</div></div><div class="tog on" id="tg-spot"></div></div>
-    <div class="tog-row"><div><div class="tog-lbl">Margin</div><div class="tog-sub">Deaktiviert</div></div><div class="tog" id="tg-margin" onclick="togFeat('margin')"></div></div>
-    <div class="tog-row"><div><div class="tog-lbl">Futures / Hebel / Short</div><div class="tog-sub">Dauerhaft deaktiviert</div></div><div class="tog" id="tg-futures"></div></div>
+    <div class="tog-row"><div><div class="tog-lbl">Spot Trading</div><div class="tog-sub">Standard — immer aktiv</div></div><div class="tog on" id="tg-spot"></div></div>
+    <div class="tog-row"><div><div class="tog-lbl">Margin Trading</div><div class="tog-sub">Vorsicht — Hebel auf Spot</div></div><div class="tog" id="tg-margin" onclick="togFeat('margin')"></div></div>
+    <div class="tog-row"><div><div class="tog-lbl">Futures</div><div class="tog-sub">Vorsicht — Perpetual Contracts</div></div><div class="tog" id="tg-futures" onclick="togFeat('futures')"></div></div>
+    <div class="tog-row"><div><div class="tog-lbl">Short Selling</div><div class="tog-sub">Vorsicht — Leerverkäufe</div></div><div class="tog" id="tg-short" onclick="togFeat('short')"></div></div>
+    <div class="tog-row"><div><div class="tog-lbl">Hebel / Leverage</div><div class="tog-sub">Vorsicht — gehebelter Handel</div></div><div class="tog" id="tg-hebel" onclick="togFeat('hebel')"></div></div>
   </div>
   <div class="card">
     <div class="ct">RISK GUARD</div>
@@ -1065,7 +1068,7 @@ function updateStreak(){
 
 // KAPITAL
 function updPosSize(){if(S.capital.reinvest<=0)return;const max=S.capital.reinvest*S.settings.maxPos/100;document.getElementById('pos-kap').textContent=S.capital.reinvest.toFixed(2)+' USDT';document.getElementById('pos-max').textContent=max.toFixed(2)+' USDT';document.getElementById('pos-rec').textContent=(max*.5).toFixed(2)+' USDT';}
-function setCapital(){const t=parseFloat(document.getElementById('manCap').value);if(!t)return;S.capital={total:t,safe:t*.7,reinvest:t*.3};localStorage.setItem('nx_cap',JSON.stringify(S.capital));updateCapDisplay();updPosSize();log('OK','Kapital: '+t+' USDT');}
+function setCapital(){const t=parseFloat(document.getElementById('manCap').value);if(!t)return;const splitPct=parseFloat(document.getElementById('manSplit').value)||0;const safePct=splitPct/100;S.capital={total:t,safe:t*safePct,reinvest:t*(1-safePct)};localStorage.setItem('nx_cap',JSON.stringify(S.capital));updateCapDisplay();updPosSize();log('OK','Kapital: '+t+' USDT · Safe: '+splitPct+'% · Handelbar: '+(100-splitPct)+'%');}
 function addProfit(){const p=parseFloat(document.getElementById('manProfit').value);if(!p)return;S.capital.total+=p;S.capital.safe+=p*.7;S.capital.reinvest+=p*.3;localStorage.setItem('nx_cap',JSON.stringify(S.capital));updateCapDisplay();log('OK','+'+p+' USDT Gewinn gesplittet');}
 function updateCapDisplay(){const{total,safe,reinvest}=S.capital;document.getElementById('cap-total').textContent=total?total.toFixed(2):'—';document.getElementById('cap-safe').textContent=safe?safe.toFixed(2):'—';document.getElementById('cap-re').textContent=reinvest?reinvest.toFixed(2):'—';}
 
@@ -1108,7 +1111,7 @@ function delKeys(){if(!confirm('Löschen?'))return;localStorage.removeItem('nx_a
 function getKeys(){try{return JSON.parse(localStorage.getItem('nx_api')||'{}')}catch{return{};}}
 function updateKeyStat(){const k=getKeys(),el=document.getElementById('sysKeys');if(k.apiKey){el.textContent='GESETZT ('+k.apiKey.substring(0,6)+'...)';el.style.color='var(--accent2)';}else{el.textContent='NICHT GESETZT';el.style.color='var(--danger)';}}
 function saveRisk(){const r={maxVol:+document.getElementById('setVol').value||5,maxPos:+document.getElementById('setPos').value||10,maxLoss:+document.getElementById('setLoss').value||3,minScore:+document.getElementById('setMinScore').value||60,whaleThresh:+document.getElementById('setWhaleThresh').value||60};S.settings={...S.settings,...r};localStorage.setItem('nx_risk',JSON.stringify(r));document.getElementById('pos-pct').textContent=r.maxPos;log('OK','Risk gespeichert');alert('✓ Risk Guard aktualisiert');}
-function togFeat(n){S.features[n]=!S.features[n];updateFeatToggles();localStorage.setItem('nx_feat',JSON.stringify(S.features));}
+function togFeat(n){S.features[n]=!S.features[n];updateFeatToggles();localStorage.setItem('nx_feat',JSON.stringify(S.features));log('INFO','Feature '+n+': '+(S.features[n]?'AN':'AUS'));if(n==='futures'||n==='hebel'||n==='short')log('WARN','Vorsicht: '+n+' aktiviert — erhöhtes Risiko!');}
 function updateFeatToggles(){Object.keys(S.features).forEach(f=>{const el=document.getElementById('tg-'+f);if(el)el.className='tog'+(S.features[f]?' on':'');});}
 async function testProxy(){const u=document.getElementById('proxyUrl').value.trim();S.proxyUrl=u;localStorage.setItem('nx_proxy',u);try{const r=await fetch(u+'/health',{signal:AbortSignal.timeout(3000)});if(r.ok){S.proxyOk=true;document.getElementById('sysProxy').textContent='VERBUNDEN ✓';document.getElementById('sysProxy').style.color='var(--accent2)';log('OK','Proxy: '+u);}else throw new Error('HTTP '+r.status);}catch{S.proxyOk=false;document.getElementById('sysProxy').textContent='NICHT VERBUNDEN';document.getElementById('sysProxy').style.color='var(--danger)';log('WARN','Proxy offline → node nexus-proxy.js starten');}}
 function setTF(tf,btn){S.tf=tf;document.querySelectorAll('.tf-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');S.candles[tf]=null;log('INFO','TF: '+tf);}
