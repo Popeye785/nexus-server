@@ -3460,7 +3460,8 @@ const Recon = {
     this.mismatches = [];
     if (!CFG.API_KEY) { this.state='SKIPPED_DEMO'; return { state:this.state }; }
     try {
-      const [spot, fut] = await Promise.all([Bitget.fetchSpotBalance(), Bitget.fetchFuturesBalance()]);
+      const spot = await Bitget.fetchSpotBalance();
+      const fut = await Bitget.fetchFuturesBalance().catch(()=>({ available:0, locked:0 }));
       const exchangeTotal = spot.available + fut.available;
       const internalTotal = Balance.usable;
       const delta = Math.abs(exchangeTotal-internalTotal);
@@ -10438,7 +10439,7 @@ const CoinScanner = {
   WATCHLIST: [
     'BTCUSDT','ETHUSDT','SOLUSDT','XRPUSDT',
     'BNBUSDT','ADAUSDT','AVAXUSDT','DOGEUSDT',
-    'POLSDT','LINKUSDT','DOTUSDT','LTCUSDT',
+    'POLUSDT','LINKUSDT','DOTUSDT','LTCUSDT',
     'UNIUSDT','ATOMUSDT','NEARUSDT','ARBUSDT',
     'OPUSDT','SUIUSDT','APTUSDT','SEIUSDT',
   ],
