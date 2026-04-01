@@ -1,0 +1,7 @@
+.env
+node_modules/
+nexus.db
+nexus.db-shm
+nexus.db-wal
+backups/
+.DS_Store
