@@ -3440,6 +3440,13 @@ const Trades = {
       DemoEngine.wallet.pnl = (DemoEngine.wallet.pnl || 0) + pnl;
       try { require('fs').writeFileSync('/tmp/nexus_demo_wallet.json', JSON.stringify(DemoEngine.wallet)); } catch(e) {}
     }
+    // Push-Notify: Telegram bei PnL >= 50 USDT
+    try {
+      if (Math.abs(pnl) >= 50 && TelegramBot.enabled) {
+        const emoji = pnl > 0 ? '💰' : '🔴';
+        TelegramBot.send(emoji + ' Trade geschlossen: ' + trade.symbol + '\nPnL: ' + pnl.toFixed(2) + ' USDT\nReason: ' + reason);
+      }
+    } catch(_) {}
     Log.info('TRADE', `Closed: ${id} exitPrice=${exitPrice} pnl=${pnl.toFixed(4)} reason=${reason}`);
     return pnl;
   },
@@ -3707,6 +3714,33 @@ const DecisionFlow = {
       }
     } catch(_) {}
 
+    // 8d. SmartMoney Signal: Akkumulation/Distribution
+    try {
+      const smMod = await SmartMoney.getStrengthModifier(symbol, direction);
+      if (smMod !== 0) {
+        strength = Math.max(0.1, Math.min(0.95, strength + smMod));
+        Log.info('SMARTMONEY', symbol + ' mod=' + smMod.toFixed(3) + ' str=' + strength.toFixed(3));
+      }
+    } catch(_) {}
+
+    // 8e. OnChain Whale Flow: Exchange In/Outflow
+    try {
+      const ocMod = await OnChainAnalysis.getStrengthModifier(symbol, direction);
+      if (ocMod !== 0) {
+        strength = Math.max(0.1, Math.min(0.95, strength + ocMod));
+        Log.info('ONCHAIN', symbol + ' mod=' + ocMod.toFixed(3) + ' str=' + strength.toFixed(3));
+      }
+    } catch(_) {}
+
+    // 8f. Reddit Sentiment AI
+    try {
+      const rsMod = await SentimentAI.getStrengthModifier(symbol, direction);
+      if (rsMod !== 0) {
+        strength = Math.max(0.1, Math.min(0.95, strength + rsMod));
+        Log.info('REDDIT', symbol + ' mod=' + rsMod.toFixed(3) + ' str=' + strength.toFixed(3));
+      }
+    } catch(_) {}
+
     Log.info('DEC', `APPROVED ${symbol} ${direction} size=${size.toFixed(2)} ene=${ene.toFixed(6)}`, { corrId });
     return { approved:true, symbol, direction, strength, size, price, ene, regime:Regime.regime, corrId, fundingSignal, safetyCheck };
   }
@@ -3835,7 +3869,19 @@ const AutoEngine = {
       }
       // Wallet-Tracker
       if (WalletTracker.enabled && this.stats.scansTotal % 10 === 0) {
-        await WalletTracker.run().catch(() => {});
+        try {
+          await WalletTracker.run();
+          const wSnap = WalletTracker.snapshot();
+          const WHALE_ALERT_THRESHOLD = 500000;
+          if (wSnap && wSnap.alerts && wSnap.alerts.length > 0) {
+            const bigMoves = wSnap.alerts.filter(a => (a.value || 0) >= WHALE_ALERT_THRESHOLD);
+            if (bigMoves.length > 0) {
+              const msg = bigMoves.map(a => (a.direction === 'IN' ? '🔴 ' : '🟢 ') + (a.label||a.address||'?') + ': ' + ((a.value||0)/1e6).toFixed(1) + 'M USD ' + (a.direction||'')).join('\n');
+              TelegramBot.send('🐋 Whale Wallet Alert:\n' + msg);
+              Log.info('WHALE', 'Grosse Bewegung: ' + bigMoves.length + ' Alerts');
+            }
+          }
+        } catch(_) {}
       }
       if (!['HALTED','EXIT_ONLY'].includes(KillSwitch.mode)) {
         await this._scanSignals();
@@ -6092,6 +6138,55 @@ app.get('/api/chart/heikinashi/:symbol', async (req,res) => {
   const candles = await Bitget.fetchCandles(req.params.symbol, gran, 100);
   const ha = Ind.heikinAshi(candles);
   res.json({ symbol:req.params.symbol, granularity:gran, candles:ha.map(c=>({ ts:c.ts, o:c.open, h:c.high, l:c.low, c:c.close, v:c.vol, bull:c.bull })) });
+});
+
+// ── ALADDIN API ROUTES (Dashboard KI-Dash Tab) ──────────────────────────────
+app.get('/api/aladdin/heatmap', async (req,res) => {
+  try {
+    const symbols = (AutoEngine.symbols && AutoEngine.symbols.length)
+      ? AutoEngine.symbols
+      : ['BTCUSDT','ETHUSDT','SOLUSDT','XRPUSDT','BNBUSDT'];
+    const heat = await HeatMapEngine.compute(symbols);
+    const coins = Object.entries(heat).map(([symbol, data]) => ({ symbol, ...data }));
+    res.json({ coins });
+  } catch(e) { res.json({ error: e.message }); }
+});
+
+app.get('/api/aladdin/correlation', async (req,res) => {
+  try {
+    const raw = req.query.symbols || '';
+    const symbols = raw ? raw.split(',').filter(Boolean) : (AutoEngine.symbols || ['BTCUSDT','ETHUSDT','SOLUSDT']);
+    const result = await CorrelationEngine.compute(symbols, 50);
+    res.json(result);
+  } catch(e) { res.json({ error: e.message }); }
+});
+
+app.get('/api/aladdin/sentiment', async (req,res) => {
+  try {
+    const news = await NewsSentiment.fetch().catch(() => null);
+    if (!news || !news.items || !news.items.length) {
+      res.json({ score: 0, signal: 'NEUTRAL', count: 0, news: [] });
+      return;
+    }
+    const scored = SentimentEngine.aggregate(news.items);
+    scored.news = (news.items || []).slice(0, 10).map(n => ({
+      title: n.title || '',
+      score: SentimentEngine.score(n.title + ' ' + (n.description||'')).signal,
+    }));
+    res.json(scored);
+  } catch(e) { res.json({ error: e.message }); }
+});
+
+app.get('/api/aladdin/dashboard', async (req,res) => {
+  try {
+    const symbol = req.query.symbol || 'BTCUSDT';
+    const candles = await Bitget.fetchCandles(symbol, '1h', 100);
+    if (!candles || candles.length < 20) { res.json({ error: 'Zu wenig Daten' }); return; }
+    const sharpe     = SharpeEngine.fromCandles(candles);
+    const drawdown   = DrawdownTracker.analyze(candles);
+    const volatility = VolatilityRegime.detect(candles);
+    res.json({ symbol, sharpe, drawdown, volatility });
+  } catch(e) { res.json({ error: e.message }); }
 });
 
 
