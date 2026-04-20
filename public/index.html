@@ -4872,6 +4872,12 @@ async function loadAIDash() {
     setTile('rl', rlD.episodes?rlD.episodes+' Eps':'0', rlD.episodes>10?'var(--accent2)':'var(--dim)');
     setTile('pmax', '≥'+(((document.getElementById('ai-sym')||{}).value||'—').slice(0,3)), 'var(--gold)');
 
+    // Adaptive SL/TP Tile automatisch laden
+    try {
+      const aslD = await apiV9('/api/adaptivesltp','POST',{symbol:sym,side:'buy'}).catch(()=>({}));
+      setTile('asl', aslD.profile||'—', aslD.profile?'var(--gold)':'var(--dim)');
+    } catch(_) {}
+
     // CVD Detail
     document.getElementById('cvd-detail').innerHTML = cvdD.signal ? `
       <div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid rgba(18,42,66,.3)"><span style="color:var(--dim)">Signal</span><span style="color:${cvdD.bullishDiv?'var(--accent2)':cvdD.bearishDiv?'var(--danger)':'var(--dim)'}">${cvdD.signal||'NEUTRAL'}</span></div>
