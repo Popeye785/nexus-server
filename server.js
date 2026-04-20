@@ -864,13 +864,33 @@ const Bitget = {
   async fetchCandles(symbol, granularity='1h', limit=200) {
     const sym = symbol.replace('/','');
     try {
-      const data = await this.publicGet(`/api/v2/spot/market/candles?symbol=${sym}&granularity=${granularity}&limit=${limit}`);
-      if (data?.data) {
-        const candles = data.data.map(c => ({
+      let allCandles = [];
+      if (limit <= 1000) {
+        const data = await this.publicGet(`/api/v2/spot/market/candles?symbol=${sym}&granularity=${granularity}&limit=${limit}`);
+        if (data?.data) allCandles = data.data.map(c => ({
           ts: parseInt(c[0]), open: parseFloat(c[1]), high: parseFloat(c[2]),
           low: parseFloat(c[3]), close: parseFloat(c[4]), vol: parseFloat(c[5])
-        })).sort((a,b) => a.ts - b.ts);
-        // Cache in DB
+        }));
+      } else {
+        let endTime = Date.now();
+        let remaining = limit;
+        while (remaining > 0) {
+          const url = `/api/v2/spot/market/history-candles?symbol=${sym}&granularity=${granularity}&limit=200&endTime=${endTime}`;
+          const r = await axios.get('https://api.bitget.com' + url, { timeout: 8000 });
+          const batch = (r.data?.data || []).map(c => ({
+            ts: parseInt(c[0]), open: parseFloat(c[1]), high: parseFloat(c[2]),
+            low: parseFloat(c[3]), close: parseFloat(c[4]), vol: parseFloat(c[5])
+          }));
+          if (!batch.length) break;
+          allCandles = [...batch, ...allCandles];
+          endTime = batch[0].ts - 1;
+          remaining -= batch.length;
+          if (batch.length < 200) break;
+          await new Promise(r => setTimeout(r, 200));
+        }
+      }
+      if (allCandles.length > 0) {
+        const candles = allCandles.sort((a,b) => a.ts - b.ts);
         const insert = DB.db.transaction(() => {
           candles.forEach(c => {
             try { DB.cacheCandles.run(sym, granularity, c.ts, c.open, c.high, c.low, c.close, c.vol); } catch(_){}
@@ -881,7 +901,6 @@ const Bitget = {
       }
     } catch(e) {
       Log.warn('BITGET', `Candle fetch failed ${sym}`, { error: e.message });
-      // Fallback to DB cache
       const cached = DB.getCachedCandles.all(sym, granularity);
       if (cached.length > 10) return cached;
     }
@@ -1008,11 +1027,19 @@ const Bitget = {
           if (msg.data && msg.arg?.channel === 'ticker') {
             const d = msg.data[0];
             if (d) {
+              const _newPrice = parseFloat(d.lastPr);
+              const _existing = this.priceCache[d.instId];
+              const _prev15 = (_existing && (Date.now() - (_existing.prev15ts||0)) < 900000)
+                ? (_existing.prev15 || _newPrice)
+                : (_existing?.last || _newPrice);
+              const _prev15ts = (_existing && (Date.now() - (_existing.prev15ts||0)) < 900000)
+                ? (_existing.prev15ts || Date.now())
+                : Date.now();
               this.priceCache[d.instId] = {
-                symbol: d.instId, last: parseFloat(d.lastPr),
+                symbol: d.instId, last: _newPrice,
                 bid: parseFloat(d.bidPr), ask: parseFloat(d.askPr),
                 vol24h: parseFloat(d.usdtVol), change24h: parseFloat(d.change24h),
-                ts: Date.now()
+                ts: Date.now(), prev15: _prev15, prev15ts: _prev15ts
               };
             }
           }
@@ -3365,7 +3392,8 @@ const Trades = {
     const trade = DB.getTrade.get(id);
     if (!trade || !trade.entry_price) return;
     const dir = trade.side==='buy' ? 1 : -1;
-    const pnl = dir*(exitPrice-trade.entry_price)*trade.size;
+    const coinAmount = trade.size / trade.entry_price;
+    const pnl = dir*(exitPrice-trade.entry_price)*coinAmount;
     const now = Date.now();
     DB.updateTrade.run('CLOSED', exitPrice, pnl, reason, now, now, id);
     ExitEngine.cleanup(id);
@@ -3398,6 +3426,20 @@ const Trades = {
       RLAgent.learn(pnlForRL, freshCandles);
     } catch(_) {}
 
+    // Demo Wallet 70/30 Update
+    if (typeof DemoEngine !== 'undefined' && DemoEngine.wallet) {
+      DemoEngine.wallet.trading += trade.size;
+      if (pnl > 0) {
+        DemoEngine.wallet.reserve += pnl * 0.70;
+        DemoEngine.wallet.trading += pnl * 0.30;
+      } else {
+        DemoEngine.wallet.trading += pnl;
+        if (DemoEngine.wallet.trading < 0) DemoEngine.wallet.trading = 0;
+      }
+      DemoEngine.wallet.total = DemoEngine.wallet.reserve + DemoEngine.wallet.trading;
+      DemoEngine.wallet.pnl = (DemoEngine.wallet.pnl || 0) + pnl;
+      try { require('fs').writeFileSync('/tmp/nexus_demo_wallet.json', JSON.stringify(DemoEngine.wallet)); } catch(e) {}
+    }
     Log.info('TRADE', `Closed: ${id} exitPrice=${exitPrice} pnl=${pnl.toFixed(4)} reason=${reason}`);
     return pnl;
   },
@@ -3521,6 +3563,19 @@ const DecisionFlow = {
       return { approved:false, reason:`SYMBOL_BLACKLISTED: ${blacklistCheck.reason} (${blacklistCheck.remainingHours||'∞'}h)`, corrId };
     }
 
+    // 1c. BTC-Korrelations-Filter: BTC fällt > 1.5% in 15min → Altcoin-BUY blockieren
+    if (direction==='BUY' && symbol!=='BTCUSDT') {
+      const btcPrice = Bitget.priceCache['BTCUSDT']?.last || 0;
+      const btcPrev  = Bitget.priceCache['BTCUSDT']?.prev15 || btcPrice;
+      if (btcPrice > 0 && btcPrev > 0) {
+        const btcDrop = (btcPrev - btcPrice) / btcPrev;
+        if (btcDrop >= 0.015) {
+          Log.warn('BTC_FILTER', 'BTC Drop >=1.5% — Altcoin-BUY blockiert', { btcDrop:(btcDrop*100).toFixed(2)+'%', symbol });
+          return { approved:false, reason:'BTC_CORRELATION_DROP: '+( btcDrop*100).toFixed(2)+'%', corrId };
+        }
+      }
+    }
+
     // 2. No-Trade gates
     const verdict = NoTrade.verdict();
     if (!verdict.allowTrade) return { approved:false, reason:verdict.reason, gates:verdict.gates, corrId };
@@ -3542,6 +3597,25 @@ const DecisionFlow = {
       return { approved:false, reason:'MAX_CONCURRENT_TRADES', corrId };
     if (active.some(t=>t.symbol===symbol))
       return { approved:false, reason:'DUPLICATE_POSITION', corrId };
+
+    // 4c. Time-of-Day Filter: schwache Signale nur in NY/London Open
+    const _utcH = new Date().getUTCHours();
+    const _inSession = (_utcH >= 7 && _utcH < 11) ||  // London Open 07-11 UTC
+                       (_utcH >= 13 && _utcH < 17);    // NY Open 13-17 UTC
+    if (!_inSession && strength < 0.65) {
+      Log.info('TIME_FILTER', 'Schwaches Signal ausserhalb Handelssession blockiert', { utcH:_utcH, strength:strength.toFixed(3) });
+      return { approved:false, reason:'TIME_FILTER: schwaches Signal ausserhalb NY/London', corrId };
+    }
+
+    // 4b. Korrelations-Limit: max 2 Layer-1 Altcoins gleichzeitig
+    const L1_GROUP = new Set(['SOLUSDT','AVAXUSDT','NEARUSDT','ADAUSDT','DOTUSDT','ATOMUSDT','APTUSDT','SUIUSDT','SEIUSDT']);
+    if (L1_GROUP.has(symbol)) {
+      const activeL1 = active.filter(t => L1_GROUP.has(t.symbol)).length;
+      if (activeL1 >= 2) {
+        Log.info('CORR_LIMIT', 'Max 2 L1-Altcoins gleichzeitig — blockiert', { symbol, activeL1 });
+        return { approved:false, reason:'CORRELATION_LIMIT_L1: max 2 gleichzeitig', corrId };
+      }
+    }
 
     // 5. Position sizing mit Sentiment Scaler
     let size = Balance.calcPositionSize(0.5);
@@ -3609,6 +3683,20 @@ const DecisionFlow = {
       }
     } catch(_) {}
 
+    // 8c. Fed/CPI Hard-Block: High-Impact Makro-Events → keine Trades
+    try {
+      const _recentNews = NewsSentiment.cache?.items || [];
+      const _highImpact = ['fomc','fed rate','federal reserve','cpi','inflation data','nonfarm','nfp','gdp report','interest rate decision'];
+      const _hasHighImpact = _recentNews.some(n => {
+        const txt = (n.title||'').toLowerCase();
+        return _highImpact.some(kw => txt.includes(kw));
+      });
+      if (_hasHighImpact) {
+        Log.warn('NEWS_BLOCK', 'High-Impact Makro-Event erkannt — Trade blockiert');
+        return { approved:false, reason:'NEWS_BLOCK: Fed/CPI/FOMC Event aktiv', corrId };
+      }
+    } catch(_) {}
+
     // 8. Funding Rate Check (Punkt 4) – gegen Funding-Richtung warnen
     let fundingSignal = null;
     try {
@@ -3653,7 +3741,7 @@ const ExecFlow = {
       const fillPrice = direction==='BUY' ? price*(1+slip) : price*(1-slip);
       Trades.recordFill(tradeId, fillPrice, atr);
       // Demo-Wallet aktualisieren
-      const cost = fillPrice * size * 0.1;
+      const cost = size; // size ist bereits in USDT
       if (direction==='BUY') DemoEngine.wallet.trading = Math.max(0, DemoEngine.wallet.trading - cost);
       else DemoEngine.wallet.trading = Math.min(DemoEngine.wallet.startTotal, DemoEngine.wallet.trading + cost);
       DemoEngine.wallet.total = DemoEngine.wallet.reserve + DemoEngine.wallet.trading;
@@ -3724,6 +3812,12 @@ const AutoEngine = {
   },
 
   async _cycle() {
+    if (!this.symbols.length && typeof CoinScanner !== 'undefined' && CoinScanner.activeCoins && CoinScanner.activeCoins.length) {
+      this.symbols = CoinScanner.activeCoins;
+    }
+    if (!this.symbols.length) {
+      this.symbols = ['BTCUSDT','ETHUSDT','SOLUSDT','XRPUSDT','ARBUSDT'];
+    }
     if (!this.enabled || KillSwitch.mode==='HALTED') return;
     this.stats.scansTotal++;
     this.stats.lastScan = new Date().toISOString();
@@ -5769,10 +5863,11 @@ app.post('/api/db/watchdog/config', (req,res) => {
 // ── HISTORISCHER PRE-TRAINER API ──────────────────────────────────────────────
 app.get('/api/pretrain',         (req,res) => res.json(HistoricalTrainer.snapshot()));
 app.post('/api/pretrain/start',  async (req,res) => {
-  const { symbol='BTCUSDT', granularity='1h', targetCandles=1000 } = req.body;
+  const { symbol='BTCUSDT', granularity='1h', targetCandles=1000, candles } = req.body;
+  const resolvedCandles = parseInt(candles || targetCandles);
   // Async starten, sofort antworten
   res.json({ ok:true, message:'Pre-Training gestartet – dauert 2-5 Minuten', status:'STARTED' });
-  HistoricalTrainer.train({ symbol, granularity, targetCandles:parseInt(targetCandles) });
+  HistoricalTrainer.train({ symbol, granularity, targetCandles:resolvedCandles });
 });
 app.get('/api/pretrain/status',  (req,res) => res.json(HistoricalTrainer.snapshot()));
 
@@ -8252,7 +8347,7 @@ const NewsSentiment = {
       this.lastFetch = Date.now();
 
       // Kritische News per Telegram
-      const critical = alerts.filter(a => a.weight >= 25);
+      const critical = alerts.filter(a => a.weight >= 30);
       if (critical.length > 0) {
         TelegramBot.send('📰 KRITISCHE NEWS:\n' + critical.map(a => `⚠️ ${a.word.toUpperCase()}: ${a.title}`).join('\n'));
         Incidents.create('NEWS_CRITICAL', critical.map(a => a.word).join(', '), 'HIGH');
@@ -9332,8 +9427,8 @@ const DemoEngine = {
   // Virtuelles Wallet (komplett unabhängig von echtem Balance)
   wallet: {
     total:      1000,
-    reserve:    700,    // 70% Reserve
-    trading:    300,    // 30% Trading
+    reserve:    0,      // Startet bei 0    // 70% Reserve
+    trading:    1000,   // Volles Kapital    // 30% Trading
     startTotal: 1000,
     peakTotal:  1000,
     dailyStart: 1000,
@@ -9355,8 +9450,8 @@ const DemoEngine = {
     if (this.running) return { error: 'Demo läuft bereits' };
     this.startCapital      = capital;
     this.wallet.total      = capital;
-    this.wallet.reserve    = capital * 0.70;
-    this.wallet.trading    = capital * 0.30;
+    this.wallet.reserve    = 0;
+    this.wallet.trading    = capital;
     this.wallet.startTotal = capital;
     this.wallet.peakTotal  = capital;
     this.wallet.dailyStart = capital;
@@ -10750,7 +10845,7 @@ const HistoricalTrainer = {
     try {
       // ── SCHRITT 1: Kerzen laden ──────────────────────────────────────────
       // Bitget liefert max 1000 Kerzen pro Request
-      const limit = Math.min(targetCandles, 1000);
+      const limit = Math.min(targetCandles, 3000);
       const candles = await Bitget.fetchCandles(symbol, granularity, limit);
       if (!candles || candles.length < 100) {
         this.running = false; this.status = 'FEHLER: Zu wenig Daten';
@@ -10984,6 +11079,7 @@ async function boot() {
   // DemoEngine initialisieren
   if (!CFG.API_KEY) {
     DemoEngine.mode = 'DEMO';
+    DemoEngine.running = false;
     CFG.DEPLOY_MODE = 'PAPER';
     Log.boot('DemoEngine: DEMO-MODUS (kein API Key → Spielgeld)');
   } else {
@@ -11000,6 +11096,219 @@ async function boot() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// ── LIVE BENCHMARK: NEXUS vs BTC Hold ───────────────────────────────────────
+const LiveBenchmark = {
+  startPrice: 0,
+  startCapital: 0,
+  startTs: 0,
+
+  init(capital) {
+    if (this.startTs > 0) return;
+    this.startCapital = capital;
+    this.startTs = Date.now();
+    // BTC Startpreis merken
+    const btcPrice = Bitget.priceCache['BTCUSDT']?.last || 0;
+    this.startPrice = btcPrice;
+    Log.info('BENCHMARK', 'Start: Kapital='+capital.toFixed(2)+' BTC='+btcPrice.toFixed(2));
+  },
+
+  snapshot(currentCapital) {
+    if (!this.startTs || !this.startPrice || !this.startCapital) return null;
+    const btcNow = Bitget.priceCache['BTCUSDT']?.last || 0;
+    if (!btcNow) return null;
+
+    const nexusPct  = ((currentCapital - this.startCapital) / this.startCapital * 100);
+    const btcPct    = ((btcNow - this.startPrice) / this.startPrice * 100);
+    const alpha     = nexusPct - btcPct;
+    const daysSince = (Date.now() - this.startTs) / 86400000;
+
+    return {
+      nexusPct:   parseFloat(nexusPct.toFixed(2)),
+      btcPct:     parseFloat(btcPct.toFixed(2)),
+      alpha:      parseFloat(alpha.toFixed(2)),
+      beating:    alpha > 0,
+      daysSince:  parseFloat(daysSince.toFixed(1)),
+      startCapital: this.startCapital,
+      currentCapital,
+      btcStart:   this.startPrice,
+      btcNow,
+    };
+  }
+};
+
+// ── SMART MONEY TRACKER ──────────────────────────────────────────────────────
+const SmartMoney = {
+  cache: {},
+  CACHE_TTL: 20 * 60 * 1000,
+
+  // Smart Money Signal: OI-Anstieg + Funding neutral + Preis stabil = Akkumulation
+  async getSignal(symbol) {
+    const cached = this.cache[symbol];
+    if (cached && Date.now() - (cached.ts||0) < this.CACHE_TTL) return cached;
+
+    try {
+      // Open Interest von Bitget
+      const oiUrl = 'https://api.bitget.com/api/v2/mix/market/open-interest?symbol='+symbol+'&productType=usdt-futures';
+      const oiR = await axios.get(oiUrl, { timeout:8000 });
+      const oi = parseFloat(oiR.data?.data?.openInterestList?.[0]?.size || 0);
+
+      // Funding Rate
+      const frUrl = 'https://api.bitget.com/api/v2/mix/market/current-fund-rate?symbol='+symbol+'&productType=usdt-futures';
+      const frR = await axios.get(frUrl, { timeout:8000 });
+      const fr = parseFloat(frR.data?.data?.[0]?.fundingRate || 0);
+
+      // Preis-Trend letzte Stunde
+      const candles = await Bitget.fetchCandles(symbol, '1h', 3).catch(()=>[]);
+      const priceTrend = candles.length >= 2 ? (candles[candles.length-1].close - candles[0].close) / candles[0].close : 0;
+
+      // Smart Money Akkumulation: OI steigt, Funding neutral (-0.01 bis +0.01), Preis seitwärts
+      let signal = 'NEUTRAL';
+      if (oi > 0 && Math.abs(fr) < 0.01 && Math.abs(priceTrend) < 0.005) signal = 'ACCUMULATION';
+      else if (fr > 0.02 && priceTrend > 0.01) signal = 'OVERHEATED';
+      else if (fr < -0.02 && priceTrend < -0.01) signal = 'DISTRIBUTION';
+
+      const result = { signal, oi, fundingRate:fr, priceTrend, ts:Date.now() };
+      this.cache[symbol] = result;
+      Log.info('SMARTMONEY', symbol+' '+signal+' OI='+oi.toFixed(0)+' FR='+fr.toFixed(4));
+      return result;
+    } catch(_) { return { signal:'NEUTRAL', ts:Date.now() }; }
+  },
+
+  async getStrengthModifier(symbol, direction) {
+    try {
+      const s = await this.getSignal(symbol);
+      if (s.signal==='ACCUMULATION' && direction==='BUY')  return +0.07;
+      if (s.signal==='DISTRIBUTION' && direction==='SELL') return +0.07;
+      if (s.signal==='OVERHEATED'   && direction==='BUY')  return -0.07;
+      if (s.signal==='DISTRIBUTION' && direction==='BUY')  return -0.07;
+    } catch(_) {}
+    return 0;
+  }
+};
+
+// ── ON-CHAIN ANALYSE: Whale Alert RSS ───────────────────────────────────────
+const OnChainAnalysis = {
+  cache: { btc:{}, eth:{}, sol:{} },
+  CACHE_TTL: 10 * 60 * 1000, // 10 Minuten
+
+  async fetchWhaleAlerts(coin) {
+    try {
+      const url = 'https://api.whale-alert.io/v1/transactions?api_key=free&min_value=500000&limit=10&currency='+coin.toLowerCase();
+      const r = await axios.get(url, { timeout:8000 });
+      const txs = r.data?.transactions || [];
+      let inflow=0, outflow=0;
+      txs.forEach(tx => {
+        if (tx.to?.owner_type==='exchange') outflow += tx.amount_usd||0;
+        if (tx.from?.owner_type==='exchange') inflow += tx.amount_usd||0;
+      });
+      return { inflow, outflow, netFlow: inflow-outflow, txCount: txs.length };
+    } catch(_) { return null; }
+  },
+
+  async getSignal(symbol) {
+    const coin = symbol.replace('USDT','');
+    const key = coin.toLowerCase();
+    const cached = this.cache[key];
+    if (cached && Date.now() - (cached.ts||0) < this.CACHE_TTL) return cached;
+
+    const data = await this.fetchWhaleAlerts(coin);
+    if (!data) return { signal:'NEUTRAL', netFlow:0, ts:Date.now() };
+
+    // Netto-Inflow zu Exchange = Verkaufsdruck = BEARISH
+    // Netto-Outflow von Exchange = Akkumulation = BULLISH
+    const signal = data.netFlow < -1000000 ? 'BULLISH' :
+                   data.netFlow >  1000000 ? 'BEARISH' : 'NEUTRAL';
+    const result = { ...data, signal, ts: Date.now() };
+    this.cache[key] = result;
+    Log.info('ONCHAIN', coin+' WhaleFlow: '+signal+' netFlow='+((data.netFlow/1e6).toFixed(1))+'M USD');
+    return result;
+  },
+
+  async getStrengthModifier(symbol, direction) {
+    try {
+      const s = await this.getSignal(symbol);
+      if (s.signal==='BULLISH' && direction==='BUY')  return +0.07;
+      if (s.signal==='BEARISH' && direction==='SELL') return +0.07;
+      if (s.signal==='BEARISH' && direction==='BUY')  return -0.07;
+      if (s.signal==='BULLISH' && direction==='SELL') return -0.07;
+    } catch(_) {}
+    return 0;
+  }
+};
+
+// ── SENTIMENT-KI: Augmento + Reddit ─────────────────────────────────────────
+const SentimentAI = {
+  cache: {}, // symbol -> { score, signal, ts }
+  CACHE_TTL: 15 * 60 * 1000, // 15 Minuten
+
+  async fetchRedditSentiment(coin) {
+    try {
+      const sub = coin==='BTC' ? 'Bitcoin' : coin==='ETH' ? 'ethereum' : coin==='SOL' ? 'solana' : 'CryptoCurrency';
+      const url = 'https://www.reddit.com/r/'+sub+'/hot.json?limit=10';
+      const r = await axios.get(url, { headers:{ 'User-Agent':'NEXUS-Bot/1.0' }, timeout:8000 });
+      const posts = r.data?.data?.children || [];
+      const bullWords = ['bullish','moon','pump','buy','long','breakout','ath','surge','rally'];
+      const bearWords = ['bearish','dump','sell','short','crash','drop','fear','down','rekt'];
+      let bull=0, bear=0;
+      posts.forEach(p => {
+        const txt = ((p.data?.title||'')+(p.data?.selftext||'')).toLowerCase();
+        bullWords.forEach(w => { if(txt.includes(w)) bull++; });
+        bearWords.forEach(w => { if(txt.includes(w)) bear++; });
+      });
+      const total = bull + bear || 1;
+      return { bull, bear, score: (bull-bear)/total, source:'reddit' };
+    } catch(_) { return null; }
+  },
+
+  async getSentiment(symbol) {
+    const coin = symbol.replace('USDT','');
+    const cached = this.cache[symbol];
+    if (cached && Date.now() - cached.ts < this.CACHE_TTL) return cached;
+
+    const reddit = await this.fetchRedditSentiment(coin);
+    const score = reddit ? reddit.score : 0;
+    const signal = score > 0.2 ? 'BULLISH' : score < -0.2 ? 'BEARISH' : 'NEUTRAL';
+    const result = { score, signal, ts: Date.now(), sources: { reddit } };
+    this.cache[symbol] = result;
+    return result;
+  },
+
+  // Gibt Stärke-Modifier zurück: -0.10 bis +0.10
+  async getStrengthModifier(symbol, direction) {
+    try {
+      const s = await this.getSentiment(symbol);
+      if (s.signal==='BULLISH' && direction==='BUY')  return +0.08;
+      if (s.signal==='BEARISH' && direction==='SELL') return +0.08;
+      if (s.signal==='BEARISH' && direction==='BUY')  return -0.08;
+      if (s.signal==='BULLISH' && direction==='SELL') return -0.08;
+    } catch(_) {}
+    return 0;
+  }
+};
+
+// Wochenbericht: jeden Sonntag 09:00 UTC per Telegram
+setInterval(() => {
+  const now = new Date();
+  if (now.getUTCDay() === 0 && now.getUTCHours() === 9 && now.getUTCMinutes() < 2) {
+    try {
+      const w = DemoEngine.wallet;
+      const stats = DemoEngine.stats || {};
+      const total = (stats.wins||0) + (stats.losses||0);
+      const winRate = total > 0 ? ((stats.wins||0)/total*100).toFixed(1) : '0.0';
+      const msg = [
+        'NEXUS V9 — Wochenbericht',
+        'Kapital: '+(w.total||0).toFixed(2)+' USDT',
+        'Woche PnL: '+(w.pnl||0).toFixed(2)+' USDT',
+        'Win-Rate: '+winRate+'%',
+        'Trades: '+total+' ('+( stats.wins||0)+'W / '+(stats.losses||0)+'L)',
+        'Peak: '+(w.peakTotal||0).toFixed(2)+' USDT',
+      ].join('\n');
+      TelegramBot.send(msg);
+      Log.info('WEEKLY', 'Wochenbericht gesendet');
+    } catch(e) { Log.warn('WEEKLY', 'Fehler: '+e.message); }
+  }
+}, 60000); // jede Minute prüfen
+
 // START
 // ─────────────────────────────────────────────────────────────────────────────
 boot().then(()=>{
