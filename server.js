@@ -6141,6 +6141,41 @@ app.get('/api/chart/heikinashi/:symbol', async (req,res) => {
 });
 
 // ── ALADDIN API ROUTES (Dashboard KI-Dash Tab) ──────────────────────────────
+// ── RISKENGINE API (Monte Carlo + Bayesian) ──────────────────────────────────
+app.post('/api/riskengine/montecarlo', async (req,res) => {
+  try {
+    const { symbol='BTCUSDT', simulations=1000, horizon=20 } = req.body;
+    const candles = await Bitget.fetchCandles(symbol, '1h', 100);
+    if (!candles || candles.length < 30) { res.json({ error: 'Zu wenig Daten' }); return; }
+    const result = RiskEngine.monteCarlo(candles, simulations, horizon);
+    if (!result) { res.json({ error: 'Simulation fehlgeschlagen' }); return; }
+    res.json(result);
+  } catch(e) { res.json({ error: e.message }); }
+});
+
+app.post('/api/riskengine/bayesian', async (req,res) => {
+  try {
+    const { symbol='BTCUSDT' } = req.body;
+    const candles = await Bitget.fetchCandles(symbol, '1h', 50);
+    if (!candles || candles.length < 20) { res.json({ error: 'Zu wenig Daten' }); return; }
+    const closes = candles.map(c => c.close);
+    const rsi = Ind.rsi(closes);
+    const macdVal = Ind.macd(closes);
+    const ema50 = Ind.ema(closes, 50);
+    const atr = Ind.atr(candles);
+    const cur = closes[closes.length-1];
+    const avgVol = candles.slice(-10).reduce((s,c) => s + (c.high-c.low)/c.close, 0) / 10;
+    const observations = {
+      rsi: rsi,
+      macdBull: macdVal && macdVal.histogram > 0,
+      volSpike: avgVol > 0.03,
+      priceAboveEMA: ema50 ? cur > ema50 : null,
+    };
+    const result = RiskEngine.bayesian.update(observations);
+    res.json(result);
+  } catch(e) { res.json({ error: e.message }); }
+});
+
 app.get('/api/aladdin/heatmap', async (req,res) => {
   try {
     const symbols = (AutoEngine.symbols && AutoEngine.symbols.length)
