@@ -5541,7 +5541,7 @@ async function loadHeatMap() {
         const h = typeof sym === 'object' ? sym : d[sym]; const symName = h.symbol||sym;
         const col = h.color === 'danger' ? 'var(--danger)' : h.color === 'warn' ? 'var(--warn)' : 'var(--accent2)';
         return `<div style="padding:6px 8px;border-radius:6px;background:rgba(0,0,0,.4);border:1px solid ${col};min-width:70px;text-align:center">
-          <div style="color:${col};font-weight:bold;font-size:10px">${sym.replace('USDT','')}</div>
+          <div style="color:${col};font-weight:bold;font-size:10px">${(sym.symbol||sym).replace('USDT','')}</div>
           <div style="font-size:14px;color:${col}">${h.heatScore}</div>
           <div style="font-size:8px;color:var(--dim)">${h.change24h>0?'+':''}${h.change24h}%</div>
           <div style="font-size:8px;color:var(--dim)">${h.volatility}</div>
@@ -5605,7 +5605,7 @@ async function loadCorrelation() {
     Object.entries(d.avgCorr||{}).sort((a,b)=>b[1]-a[1]).forEach(([sym,corr])=>{
       const col = corr > 0.7 ? 'var(--danger)' : corr > 0.5 ? 'var(--warn)' : 'var(--accent2)';
       table += `<div style="display:flex;justify-content:space-between;padding:2px 0">
-        <span>${sym.replace('USDT','')}</span>
+        <span>${(sym.symbol||sym).replace('USDT','')}</span>
         <span style="color:${col}">${(corr*100).toFixed(1)}%</span>
       </div>`;
     });
