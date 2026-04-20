@@ -9824,9 +9824,16 @@ const DemoEngine = {
         const exitPrice = pos.direction==='BUY' ? price*(1-exitSlip) : price*(1+exitSlip);
         const pnl       = dir * (exitPrice - pos.fillPrice) * (pos.size / pos.fillPrice);
 
-        // Wallet updaten
-        this.wallet.trading += pos.size + pnl;
-        this.wallet.total    = this.wallet.reserve + this.wallet.trading;
+        // Wallet updaten: 70/30 Split bei Gewinn
+        this.wallet.trading += pos.size; // Kapital zurueck
+        if (pnl > 0) {
+          this.wallet.reserve += pnl * 0.70;
+          this.wallet.trading += pnl * 0.30;
+        } else {
+          this.wallet.trading += pnl; // Verlust von trading abziehen
+          if (this.wallet.trading < 0) this.wallet.trading = 0;
+        }
+        this.wallet.total = this.wallet.reserve + this.wallet.trading;
         this.wallet.pnl     += pnl;
         this.wallet.dailyPnl+= pnl;
         if (this.wallet.total > this.wallet.peakTotal) this.wallet.peakTotal = this.wallet.total;
