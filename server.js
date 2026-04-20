@@ -3448,6 +3448,22 @@ const Trades = {
       }
     } catch(_) {}
     Log.info('TRADE', `Closed: ${id} exitPrice=${exitPrice} pnl=${pnl.toFixed(4)} reason=${reason}`);
+
+    // Win-Rate Check: einmalig Telegram wenn Demo >= 52%
+    try {
+      if (!global.WIN_RATE_NOTIFIED && typeof DemoEngine !== 'undefined' && DemoEngine.stats) {
+        const s = DemoEngine.stats;
+        const total = (s.wins||0) + (s.losses||0);
+        if (total >= 20) {
+          const wr = (s.wins||0) / total * 100;
+          if (wr >= 52) {
+            global.WIN_RATE_NOTIFIED = true;
+            TelegramBot.send('📊 DEMO WIN-RATE >= 52%!\nAktuell: ' + wr.toFixed(1) + '% (' + (s.wins||0) + 'W / ' + (s.losses||0) + 'L)\nTotal: ' + total + ' Trades\n\nLive-Umschaltung moeglich — Entscheidung liegt bei dir.');
+            Log.info('WINRATE', 'Demo Win-Rate ' + wr.toFixed(1) + '% >= 52% — Notification gesendet');
+          }
+        }
+      }
+    } catch(_) {}
     return pnl;
   },
 
