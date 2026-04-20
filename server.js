@@ -3560,6 +3560,98 @@ const Recon = {
   }
 };
 
+
+// UNIFIED DECISION SCORE - Alle Datenquellen => ein Score
+const UnifiedScore = {
+  WEIGHTS: {
+    strategies:0.25, mlEnsemble:0.15, rlAgent:0.05, cvd:0.08,
+    patterns:0.05, ichimoku:0.06, elliott:0.03,
+    regime:0.10, fearGreed:0.06, news:0.08, reddit:0.04,
+    onChain:0.06, smartMoney:0.06,
+    monteCarlo:0.08, bayesian:0.07, volatility:0.06, anomaly:0.10, sharpe:0.04,
+    btcCorr:0.08, heatScore:0.04, correlation:0.03,
+  },
+  async compute(symbol, candles, orderbook) {
+    const t0=Date.now(); const scores={}; const blocks=[];
+    if (!candles||candles.length<30) return {direction:'HOLD',confidence:0,reason:'ZU_WENIG_DATEN'};
+    const closes=candles.map(c=>c.close); const price=closes[closes.length-1];
+    const [fgR,newsR,redditR,ocR,smR,mcR,volR,anomR,shR]=await Promise.all([
+      FearGreed.fetch().catch(()=>null), NewsSentiment.fetch().catch(()=>null),
+      SentimentAI.getSentiment(symbol).catch(()=>null), OnChainAnalysis.getSignal(symbol).catch(()=>null),
+      SmartMoney.getSignal(symbol).catch(()=>null), RiskEngine.monteCarlo(candles,500,10),
+      VolatilityRegime.detect(candles), AnomalyDetector.shouldBlock(symbol,candles),
+      SharpeEngine.fromCandles(candles),
+    ]);
+    // STRATEGIES
+    const raw=Strategies.getAll(candles,orderbook)||[];
+    if(raw.length>0){const b=raw.filter(s=>s.direction==='BUY'),sl=raw.filter(s=>s.direction==='SELL');
+      const d=b.length>sl.length?'BUY':sl.length>b.length?'SELL':'NEUTRAL';
+      const best=d==='BUY'?b:d==='SELL'?sl:[];
+      const avg=best.length>0?best.reduce((s,x)=>s+x.strength,0)/best.length:0;
+      scores.strategies={direction:d,score:d==='BUY'?avg:d==='SELL'?-avg:0,confidence:Math.min(best.length/3,1)};
+    } else scores.strategies={direction:'NEUTRAL',score:0,confidence:0};
+    // ML
+    if(MLOptimizer.trained){const ml=MLOptimizer.predict(candles);
+      scores.mlEnsemble=ml.signal!=='HOLD'&&ml.confidence>0.55?{direction:ml.signal,score:ml.signal==='BUY'?ml.confidence:-ml.confidence,confidence:ml.confidence}:{direction:'NEUTRAL',score:0,confidence:ml.confidence||0.5};
+    } else scores.mlEnsemble={direction:'NEUTRAL',score:0,confidence:0};
+    // RL
+    try{const rl=RLAgent.decide(candles);scores.rlAgent=rl.action!=='HOLD'?{direction:rl.action,score:rl.action==='BUY'?rl.confidence:-rl.confidence,confidence:Math.min(0.6,rl.confidence)}:{direction:'NEUTRAL',score:0,confidence:0.3};}catch(_){scores.rlAgent={direction:'NEUTRAL',score:0,confidence:0};}
+    // CVD
+    try{const cvd=CVDEngine.signal(candles);scores.cvd=cvd&&cvd.direction!=='NEUTRAL'?{direction:cvd.direction,score:cvd.direction==='BUY'?cvd.strength:-cvd.strength,confidence:cvd.divergence?0.8:0.5}:{direction:'NEUTRAL',score:0,confidence:0.3};}catch(_){scores.cvd={direction:'NEUTRAL',score:0,confidence:0};}
+    // PATTERNS
+    const ps=Ind.patternSignal(candles);scores.patterns=ps&&ps.strength>0.6?{direction:ps.direction,score:ps.direction==='BUY'?ps.strength:-ps.strength,confidence:ps.strength}:{direction:'NEUTRAL',score:0,confidence:0};
+    // ICHIMOKU
+    const ich=Ind.ichimoku(candles);if(ich){const d=ich.bullish?'BUY':ich.bearish?'SELL':'NEUTRAL';const s=ich.bullish?0.7:ich.bearish?-0.7:0;scores.ichimoku={direction:d,score:s,confidence:Math.abs(s)>0?0.65:0.3};}else scores.ichimoku={direction:'NEUTRAL',score:0,confidence:0};
+    // ELLIOTT
+    const ew=Ind.elliottWave(candles);if(ew&&ew.wave){const d=ew.bias||'NEUTRAL';const s=ew.wave.includes('WAVE_3')?0.8:ew.wave.includes('WAVE_5')?0.5:0.3;scores.elliott={direction:d,score:d==='BUY'?s:d==='SELL'?-s:0,confidence:s};}else scores.elliott={direction:'NEUTRAL',score:0,confidence:0};
+    // REGIME
+    Regime.detect(candles);const rm={BULL:0.7,BEAR:-0.7,RANGING:0,CHOPPY:-0.2,NEUTRAL:0,EXTREME_BEAR:-1.0,UNKNOWN:0};
+    scores.regime={direction:Regime.regime==='BULL'?'BUY':['BEAR','EXTREME_BEAR'].includes(Regime.regime)?'SELL':'NEUTRAL',score:rm[Regime.regime]||0,confidence:Regime.confidence||0.5};
+    // FEAR&GREED
+    if(fgR&&fgR.value!==undefined){const v=fgR.value;const fs2=v<=20?0.6:v<=35?0.3:v<=65?0:v<=80?-0.3:-0.6;scores.fearGreed={direction:fs2>0?'BUY':fs2<0?'SELL':'NEUTRAL',score:fs2,confidence:Math.abs(fs2)>0.3?0.7:0.4};}else scores.fearGreed={direction:'NEUTRAL',score:0,confidence:0};
+    // NEWS
+    if(newsR&&newsR.riskScore!==undefined){const r=newsR.riskScore||30;const ns=r>70?-0.8:r>50?-0.3:r<15?0.3:0;scores.news={direction:ns<-0.3?'SELL':ns>0.1?'BUY':'NEUTRAL',score:ns,confidence:r>60?0.8:0.4};if(r>80)blocks.push('NEWS_EXTREME');}else scores.news={direction:'NEUTRAL',score:0,confidence:0};
+    // REDDIT
+    scores.reddit=redditR&&redditR.score!==undefined?{direction:redditR.score>0.2?'BUY':redditR.score<-0.2?'SELL':'NEUTRAL',score:redditR.score*0.6,confidence:0.4}:{direction:'NEUTRAL',score:0,confidence:0};
+    // ONCHAIN
+    scores.onChain=ocR&&ocR.signal!=='NEUTRAL'?{direction:ocR.signal==='BULLISH'?'BUY':'SELL',score:ocR.signal==='BULLISH'?0.6:-0.6,confidence:0.6}:{direction:'NEUTRAL',score:0,confidence:0};
+    // SMARTMONEY
+    if(smR&&smR.signal!=='NEUTRAL'){const sig=smR.signal;const d=sig==='ACCUMULATION'?'BUY':sig==='DISTRIBUTION'||sig==='OVERHEATED'?'SELL':'NEUTRAL';const s=sig==='ACCUMULATION'?0.7:sig==='DISTRIBUTION'?-0.5:sig==='OVERHEATED'?-0.7:0;scores.smartMoney={direction:d,score:s,confidence:0.65};}else scores.smartMoney={direction:'NEUTRAL',score:0,confidence:0};
+    // MONTE CARLO
+    if(mcR){const rs=mcR.signal==='HIGH_RISK'?-0.7:mcR.signal==='MEDIUM_RISK'?-0.3:0.3;scores.monteCarlo={direction:rs>0?'BUY':rs<-0.3?'SELL':'NEUTRAL',score:rs,confidence:0.7,scaleFactor:mcR.scaleFactor||1.0};}else scores.monteCarlo={direction:'NEUTRAL',score:0,confidence:0,scaleFactor:1.0};
+    // BAYESIAN
+    try{const rsi=Ind.rsi(closes);const macdV=Ind.macd(closes);const ema50=Ind.ema(closes,50);const avgV=candles.slice(-10).reduce((s,c)=>s+(c.high-c.low)/c.close,0)/10;
+      const bay=RiskEngine.bayesian.update({rsi,macdBull:macdV&&macdV.histogram>0,volSpike:avgV>0.03,priceAboveEMA:ema50?price>ema50:null});
+      const bd=bay.signal==='BUY'?'BUY':bay.signal==='SELL'?'SELL':'NEUTRAL';scores.bayesian={direction:bd,score:bd==='BUY'?bay.confidence:bd==='SELL'?-bay.confidence:0,confidence:bay.confidence};
+    }catch(_){scores.bayesian={direction:'NEUTRAL',score:0,confidence:0};}
+    // VOLATILITY
+    if(volR){const vs=volR.regime==='EXTREME'?-0.8:volR.regime==='HIGH'?-0.3:volR.regime==='LOW'?0.4:0;scores.volatility={direction:vs>0?'BUY':vs<-0.3?'SELL':'NEUTRAL',score:vs,confidence:0.6,positionScale:volR.positionScale||1.0};if(volR.regime==='EXTREME')blocks.push('EXTREME_VOL');}else scores.volatility={direction:'NEUTRAL',score:0,confidence:0,positionScale:1.0};
+    // ANOMALY
+    if(anomR&&anomR.block){blocks.push('ANOMALY');scores.anomaly={direction:'SELL',score:-1.0,confidence:0.9};}else scores.anomaly={direction:'NEUTRAL',score:0.1,confidence:0.5};
+    // SHARPE
+    scores.sharpe=shR?{direction:shR.sharpe>1.5?'BUY':shR.sharpe<0?'SELL':'NEUTRAL',score:shR.sharpe>1.5?0.5:shR.sharpe>0.5?0.2:shR.sharpe>0?0:-0.3,confidence:0.5}:{direction:'NEUTRAL',score:0,confidence:0};
+    // BTC KORRELATION
+    if(symbol!=='BTCUSDT'){const bp=Bitget.priceCache['BTCUSDT']?.last||0;const bpv=Bitget.priceCache['BTCUSDT']?.prev15||bp;
+      if(bp>0&&bpv>0){const drop=(bpv-bp)/bpv;if(drop>=0.015){blocks.push('BTC_DROP');scores.btcCorr={direction:'SELL',score:-0.9,confidence:0.85};}else if(drop>=0.005)scores.btcCorr={direction:'SELL',score:-0.3,confidence:0.6};else scores.btcCorr={direction:'NEUTRAL',score:0,confidence:0.3};}else scores.btcCorr={direction:'NEUTRAL',score:0,confidence:0};
+    }else scores.btcCorr={direction:'NEUTRAL',score:0,confidence:0};
+    // HEATMAP
+    try{const heat=await HeatMapEngine.compute([symbol]);const h=heat[symbol];scores.heatScore=h?{direction:h.heatScore>70?'SELL':h.heatScore<40?'BUY':'NEUTRAL',score:h.heatScore>70?-0.5:h.heatScore<40?0.3:-0.1,confidence:0.5}:{direction:'NEUTRAL',score:0,confidence:0};}catch(_){scores.heatScore={direction:'NEUTRAL',score:0,confidence:0};}
+    // CORRELATION
+    const active=Trades.getActive();if(active.length>0){try{const cr=await CorrelationEngine.compute([symbol,...active.map(t=>t.symbol)],30);const cv=active.map(t=>Math.abs(cr.matrix?.[symbol]?.[t.symbol]||0));const mx=Math.max(...cv,0);scores.correlation={direction:mx>0.85?'SELL':'NEUTRAL',score:mx>0.85?-0.6:mx>0.7?-0.3:0,confidence:0.6};}catch(_){scores.correlation={direction:'NEUTRAL',score:0,confidence:0};}}else scores.correlation={direction:'NEUTRAL',score:0,confidence:0};
+    // HARD BLOCKS
+    if(blocks.length>0)return{direction:'HOLD',confidence:0,sizePct:0,blocked:true,blocks,reason:'HARD_BLOCK: '+blocks.join(', '),scores,computeMs:Date.now()-t0};
+    // AGGREGATION
+    let tw=0,ws=0;for(const[key,data]of Object.entries(scores)){const w=this.WEIGHTS[key]||0;if(w>0&&data.confidence>0){const ew2=w*data.confidence;ws+=data.score*ew2;tw+=ew2;}}
+    const uScore=tw>0?ws/tw:0;const direction=uScore>0.08?'BUY':uScore<-0.08?'SELL':'HOLD';const confidence=Math.min(0.95,Math.abs(uScore));
+    // SIZING
+    let sizePct=0;if(direction!=='HOLD'){sizePct=0.02+confidence*0.13;if(scores.monteCarlo?.scaleFactor)sizePct*=scores.monteCarlo.scaleFactor;if(scores.volatility?.positionScale)sizePct*=scores.volatility.positionScale;try{sizePct*=DrawdownRecovery.getRestrictions().sizeMult||1;}catch(_){}sizePct=Math.max(0.02,Math.min(0.20,sizePct));}
+    const result={symbol,direction,confidence:parseFloat(confidence.toFixed(4)),unifiedScore:parseFloat(uScore.toFixed(4)),sizePct:parseFloat(sizePct.toFixed(4)),sizeUSDT:0,blocked:false,blocks:[],reason:direction==='HOLD'?'SCORE_ZU_SCHWACH ('+uScore.toFixed(3)+')':direction+' conf='+confidence.toFixed(2)+' size='+(sizePct*100).toFixed(1)+'%',sourcesUsed:Object.keys(scores).filter(k=>scores[k].confidence>0).length,totalSources:Object.keys(scores).length,scores,computeMs:Date.now()-t0};
+    Log.info('UNIFIED',symbol+' => '+direction+' score='+uScore.toFixed(3)+' conf='+confidence.toFixed(2)+' size='+(sizePct*100).toFixed(1)+'% ['+result.sourcesUsed+'/'+result.totalSources+'] '+(Date.now()-t0)+'ms');
+    return result;
+  },
+  snapshot(){return{weights:this.WEIGHTS};},
+};
+
 // ─────────────────────────────────────────────────────────────────────────────
 // DECISION FLOW – full pipeline
 // ─────────────────────────────────────────────────────────────────────────────
@@ -6188,6 +6280,17 @@ app.post('/api/riskengine/bayesian', async (req,res) => {
       priceAboveEMA: ema50 ? cur > ema50 : null,
     };
     const result = RiskEngine.bayesian.update(observations);
+    res.json(result);
+  } catch(e) { res.json({ error: e.message }); }
+});
+
+app.get('/api/unified/:symbol', async (req,res) => {
+  try {
+    const symbol = req.params.symbol || 'BTCUSDT';
+    const candles = await Bitget.fetchCandles(symbol, '1h', 150);
+    const ob = await Bitget.fetchOrderbook(symbol).catch(() => null);
+    const result = await UnifiedScore.compute(symbol, candles, ob);
+    result.sizeUSDT = result.sizePct * (DemoEngine.wallet?.trading || Balance.trading || 1000);
     res.json(result);
   } catch(e) { res.json({ error: e.message }); }
 });
@@ -11244,6 +11347,12 @@ async function boot() {
   // Graceful Shutdown – Modelle vor dem Beenden speichern
   process.on('SIGTERM', () => { MLPersist.onShutdown(); process.exit(0); });
   process.on('SIGINT',  () => { MLPersist.onShutdown(); process.exit(0); });
+
+  // Auto-Start DemoEngine im PAPER Modus
+  if (CFG.DEPLOY_MODE === 'PAPER' || !CFG.API_KEY) {
+    DemoEngine.start(1000);
+    Log.boot('DemoEngine auto-gestartet (PAPER Modus)');
+  }
 
   Log.boot(`BOOT COMPLETE | Balance: ${Balance.usable.toFixed(2)} USDT | Mode: ${DemoEngine.mode} | ML: ${mlLoaded.loaded > 0 ? 'GELADEN' : 'LEER'}`);
 }
