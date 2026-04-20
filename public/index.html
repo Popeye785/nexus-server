@@ -3162,7 +3162,7 @@ function updateStreakUI(){
   if(S.lossSeries>0){si.textContent=S.lossSeries+'x LOSS';si.style.color='var(--danger)';}
   else{const w=S.history.findIndex(t=>t.result==='loss');si.textContent=(w===-1?S.history.length:w)+'x WIN';si.style.color='var(--accent2)';}
   const wins=S.history.filter(t=>t.result==='win').length,wr=S.history.length>0?((wins/S.history.length)*100).toFixed(1)+'%':'—';
-  document.getElementById('winRate').textContent=wr;document.getElementById('cap-wr').textContent=wr;
+  document.getElementById('winRate').textContent=wr;
 }
 
 // KAPITAL
