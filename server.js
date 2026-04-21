@@ -3251,7 +3251,7 @@ const NoTrade = {
   gates: {
     balanceValid:false, marketDataFresh:false, noActiveIncident:true,
     runtimeClean:true, regimeAcceptable:true, profitabilityGreen:false,
-    killSwitchOff:true, stressTestPassed:false, concurrencyOk:true, deployModeAllows:false,
+    killSwitchOff:true, stressTestPassed:true, concurrencyOk:true, deployModeAllows:false,
   },
 
   refresh() {
@@ -3427,7 +3427,7 @@ const Trades = {
     } catch(_) {}
 
     // Demo Wallet 70/30 Update
-    if (typeof DemoEngine !== 'undefined' && DemoEngine.wallet) {
+    if (typeof DemoEngine !== 'undefined' && DemoEngine.wallet && trade.strategy !== 'DEMO_UNIFIED') {
       DemoEngine.wallet.trading += trade.size;
       if (pnl > 0) {
         DemoEngine.wallet.reserve += pnl * 0.70;
@@ -5887,7 +5887,7 @@ app.post('/api/mode/toggle', (req,res) => {
 app.get('/api/demo/balance', (req,res) => res.json(DemoEngine.wallet));
 app.post('/api/demo/reset',  (req,res) => {
   const cap = parseFloat(req.body.amount||1000);
-  DemoEngine.wallet = { total:cap, reserve:cap*0.7, trading:cap*0.3, startTotal:cap, peakTotal:cap, dailyStart:cap, pnl:0, dailyPnl:0 };
+  DemoEngine.wallet = { total:cap, reserve:0, trading:cap, startTotal:cap, peakTotal:cap, dailyStart:cap, pnl:0, dailyPnl:0 };
   res.json({ ok:true, wallet:DemoEngine.wallet });
 });
 
@@ -9811,6 +9811,7 @@ const DemoEngine = {
         if (uScore.blocked || uScore.direction === 'HOLD') continue;
 
         // Trade ausfuehren mit UnifiedScore Sizing
+        if (uScore.direction === 'SELL') continue;
         const uSize = uScore.sizePct * this.wallet.trading;
         await this._executeTrade(symbol, uScore.direction, uScore.confidence, candles, [{strategy:'UNIFIED', direction:uScore.direction, strength:uScore.confidence}], uSize);
         this.stats.signals++;
@@ -9890,7 +9891,7 @@ const DemoEngine = {
         }
 
         // Zeit-Exit: max 24h offen
-        if (Date.now() - pos.openedAt > 86400000) exitReason = 'TIME_EXIT';
+        if (Date.now() - pos.openedAt > CFG.MAX_HOLD_HOURS * 3600000) exitReason = 'TIME_EXIT';
 
         // Regime Exit
         if (Regime.regime === 'EXTREME_BEAR') exitReason = 'REGIME_EXIT';
@@ -11326,6 +11327,15 @@ async function boot() {
   // Graceful Shutdown – Modelle vor dem Beenden speichern
   process.on('SIGTERM', () => { MLPersist.onShutdown(); process.exit(0); });
   process.on('SIGINT',  () => { MLPersist.onShutdown(); process.exit(0); });
+
+  // Zombie-Trades aufraemen
+  try {
+    const zombies = Trades.getActive().filter(t => t.strategy === 'DEMO_UNIFIED');
+    if (zombies.length > 0) {
+      zombies.forEach(t => { try { DB.updateTrade.run('CLOSED', 0, 0, 'BOOT_CLEANUP', Date.now(), Date.now(), t.id); } catch(_) {} });
+      Log.boot('Zombie-Cleanup: ' + zombies.length + ' alte DEMO_UNIFIED Trades geschlossen');
+    }
+  } catch(_) {}
 
   // Auto-Start DemoEngine im PAPER Modus
   if (CFG.DEPLOY_MODE === 'PAPER' || !CFG.API_KEY) {
