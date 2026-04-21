@@ -9844,6 +9844,13 @@ const DemoEngine = {
     };
     this.positions[tradeId] = pos;
 
+    // Auch in DB schreiben (damit alle Tabs die Trades sehen)
+    try {
+      const dbTradeId = Trades.create(symbol, direction.toLowerCase(), size, 'DEMO_UNIFIED');
+      Trades.recordFill(dbTradeId, fillPrice, Ind.atr(candles) || fillPrice*0.01);
+      pos.dbTradeId = dbTradeId; // DEMO_UNIFIED_DB Referenz
+    } catch(_dbErr) { Log.warn('DEMO', 'DB Trade Fehler: ' + _dbErr.message); }
+
     // Kapital reservieren
     this.wallet.trading -= size;
     this.stats.trades++;
@@ -9925,6 +9932,10 @@ const DemoEngine = {
         // Symbol Blacklist bei Verlust
         if (pnl < 0) SymbolBlacklist.recordLoss(pos.symbol, pnl);
 
+        // DB-Trade schliessen
+        if (pos.dbTradeId) {
+          try { Trades.close(pos.dbTradeId, exitPrice, exitReason); } catch(_) {}
+        }
         delete this.positions[id];
 
         const emoji = pnl>0 ? '✅' : '❌';
