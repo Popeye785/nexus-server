@@ -5629,17 +5629,17 @@ let _autonomTimer = null;
 function refreshCtrlStatus() { refreshAutonom(); }
 async function refreshAutonom() {
   try {
-    const d = await apiV9('/api/auto/status');
+    const d = await apiV9('/api/demo');
     const modeTxt = document.getElementById('autonom-mode-txt');
     const modeSub = document.getElementById('autonom-mode-sub');
     if (modeTxt) {
-      const running = d.running || d.enabled || d.status === 'RUNNING';
+      const running = d.running || d.enabled;
       modeTxt.textContent = running ? '🟢 LÄUFT' : '⏸ GESTOPPT';
       modeTxt.style.color = running ? 'var(--accent2)' : 'var(--dim)';
-      if (modeSub) modeSub.textContent = running ? `Intervall: ${Math.round((d.scanInterval||60000)/1000)}s · ${(d.activeSymbols||[]).join(', ')}` : 'Klicke STARTEN';
+      if (modeSub) modeSub.textContent = running ? `Intervall: ${Math.round((d.intervalMs||d.scanInterval||120000)/1000)}s · ${(d.activeSymbols||[]).join(', ')}` : 'Klicke STARTEN';
     }
-    if (document.getElementById('autonom-scans')) document.getElementById('autonom-scans').textContent = d.stats?.scansTotal || d.stats?.scans || 0;
-    if (document.getElementById('autonom-trades')) document.getElementById('autonom-trades').textContent = d.stats?.tradesAuto || d.stats?.trades || 0;
+    if (document.getElementById('autonom-scans')) document.getElementById('autonom-scans').textContent = d.stats?.scans || d.stats?.scansTotal || 0;
+    if (document.getElementById('autonom-trades')) document.getElementById('autonom-trades').textContent = d.stats?.trades || d.stats?.tradesAuto || 0;
     if (document.getElementById('autonom-errors')) document.getElementById('autonom-errors').textContent = d.stats?.errors || 0;
     // Log
     const logEl = document.getElementById('autonom-log');
@@ -5708,7 +5708,7 @@ async function refreshAutonom() {
 
   // Aktive Positions laden
   try {
-    const pos = await apiV9('/api/demo/positions').catch(()=>({positions:[]}));
+    const pos = { positions: d.positions || [] };
     const posEl = document.getElementById('autonom-positions');
     if (posEl) {
       const positions = pos.positions || [];
@@ -5717,9 +5717,9 @@ async function refreshAutonom() {
       } else {
         posEl.innerHTML = positions.map(p =>
           `<div style="padding:4px 0;border-bottom:1px solid rgba(255,255,255,.05)">
-            <span style="color:${p.side==='BUY'?'var(--accent2)':'var(--danger)'}">${p.side} ${p.symbol}</span>
+            <span style="color:${(p.side||p.direction)==='BUY'?'var(--accent2)':'var(--danger)'}">${p.side||p.direction} ${p.symbol}</span>
             <span style="float:right;color:${p.pnl>=0?'var(--accent2)':'var(--danger)'}">${p.pnl>=0?'+':''}${(p.pnl||0).toFixed(2)} USDT</span>
-            <div style="font-size:8px;color:var(--dim)">Entry: $${p.entryPrice} · SL: $${p.stopLoss||'—'} · TP: $${p.takeProfit||'—'}</div>
+            <div style="font-size:8px;color:var(--dim)">Entry: ${p.entryPrice||p.fillPrice} · SL: $${p.stopLoss||'—'} · TP: $${p.takeProfit||'—'}</div>
           </div>`
         ).join('');
       }

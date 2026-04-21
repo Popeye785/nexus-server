@@ -9797,50 +9797,15 @@ const DemoEngine = {
         const available = this.wallet.trading;
         if (available < 10) continue;
 
-        // Signals sammeln (gleiche Logik wie AutoEngine)
-        const closes     = candles.map(c => c.close);
-        const rawSignals = Strategies.getAll(candles, null) || [];
+        // UnifiedScore: ALLE Datenquellen -> eine Entscheidung
+        const ob = await Bitget.fetchOrderbook(symbol).catch(() => null);
+        const uScore = await UnifiedScore.compute(symbol, candles, ob);
 
-        // CVD Signal
-        const cvdSig = CVDEngine.signal(candles);
-        if (cvdSig) rawSignals.push({ strategy:'CVD', direction:cvdSig.direction, strength:cvdSig.strength });
+        if (uScore.blocked || uScore.direction === 'HOLD') continue;
 
-        // ML Signal
-        if (MLOptimizer.trained) {
-          const mlPred = MLOptimizer.predict(candles);
-          if (mlPred.signal !== 'HOLD' && mlPred.confidence > 0.60) {
-            rawSignals.push({ strategy:'ML', direction:mlPred.signal, strength:mlPred.confidence });
-          }
-        }
-
-        // RL Signal
-        const rlDec = RLAgent.decide(candles);
-        if (rlDec.action !== 'HOLD') {
-          rawSignals.push({ strategy:'RL', direction:rlDec.action, strength:Math.min(0.72, rlDec.confidence) });
-        }
-
-        if (!rawSignals.length) continue;
-
-        // Bestes Signal auswählen (Mehrheitsvoting)
-        const buyCount  = rawSignals.filter(s=>s.direction==='BUY').length;
-        const sellCount = rawSignals.filter(s=>s.direction==='SELL').length;
-        if (buyCount < 2 && sellCount < 2) continue; // Confluence Check
-
-        const direction  = buyCount >= sellCount ? 'BUY' : 'SELL';
-        const matching   = rawSignals.filter(s=>s.direction===direction);
-        const avgStrength= matching.reduce((s,sig)=>s+(sig.strength||0.5),0)/matching.length;
-
-        if (avgStrength < 0.55) continue;
-
-        // Anomalie Check
-        const anomaly = AnomalyDetector.shouldBlock(symbol, candles);
-        if (anomaly.block) continue;
-
-        // Symbol Blacklist
-        if (SymbolBlacklist.isBlocked(symbol).blocked) continue;
-
-        // Trade ausführen
-        await this._executeTrade(symbol, direction, avgStrength, candles, matching);
+        // Trade ausfuehren mit UnifiedScore Sizing
+        const uSize = uScore.sizePct * this.wallet.trading;
+        await this._executeTrade(symbol, uScore.direction, uScore.confidence, candles, [{strategy:'UNIFIED', direction:uScore.direction, strength:uScore.confidence}], uSize);
         this.stats.signals++;
 
       } catch(e) {
@@ -9850,18 +9815,14 @@ const DemoEngine = {
   },
 
   // ── TRADE AUSFÜHREN ──────────────────────────────────────────────────────
-  async _executeTrade(symbol, direction, strength, candles, signals) {
+  async _executeTrade(symbol, direction, strength, candles, signals, overrideSize=null) {
     const ticker = Bitget.priceCache[symbol] || await Bitget.fetchTicker(symbol).catch(()=>null);
     const price  = ticker?.last || 0;
     if (!price) return;
 
-    // Positionsgröße: 10-25% des Trading-Kapitals je nach Signalstärke
-    const sizePct = Math.min(0.25, 0.10 + strength * 0.15);
-    let   size    = this.wallet.trading * sizePct;
-
-    // Drawdown Recovery anwenden
-    size = DrawdownRecovery.applyToSize(size);
-    size = Math.max(5, Math.min(size, this.wallet.trading * 0.3));
+    // Positionsgroesse: UnifiedScore oder Fallback
+    let size = overrideSize || this.wallet.trading * Math.min(0.25, 0.02 + strength * 0.13);
+    size = Math.max(5, Math.min(size, this.wallet.trading * 0.30));
 
     // Slippage simulieren
     const atr      = Ind.atr(candles) || price*0.01;
