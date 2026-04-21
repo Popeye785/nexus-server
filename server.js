@@ -6534,12 +6534,10 @@ const SelfHeal = {
       entry.firstSeen = now;
     }
     entry.count++;
-    // Block bei >100 Requests/Min
-    if (entry.count > 100) {
-      this.blockedIPs.add(ip);
-      this.attackLog.unshift({ ts:now, ip, type:'RATE_LIMIT_EXCEEDED', count:entry.count });
-      if (this.attackLog.length > 100) this.attackLog.pop();
-      Log.warn('SECURITY', `IP ${ip} blockiert (${entry.count} Req/Min)`);
+    // Block bei >500 Requests/Min (Dashboard braucht ~50 pro Seitenlade)
+    // Kein permanenter Block mehr — nur temporaer fuer 60s
+    if (entry.count > 500) {
+      Log.warn('SECURITY', `IP ${ip} temporaer gedrosselt (${entry.count} Req/Min)`);
       return false;
     }
     return true;
