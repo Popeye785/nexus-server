@@ -1276,8 +1276,8 @@ const Ind = {
       patterns.push({ name:'MORNING_STAR', direction:'BUY', strength:0.82 });
 
     // 7. Evening Star
-    if (!bull0 && bull2 && body1 < body2*0.5 && c0.close < (c2.open+c2.close)/2) {
       const body2 = Math.abs(c2.close - c2.open);
+    if (!bull0 && bull2 && body1 < body2*0.5 && c0.close < (c2.open+c2.close)/2) {
       patterns.push({ name:'EVENING_STAR', direction:'SELL', strength:0.82 });
     }
 
