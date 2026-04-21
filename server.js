@@ -3500,7 +3500,8 @@ const StressTest = {
     const results = scenarios.map(s => {
       const impact = positions.reduce((sum,p)=>{
         const dir = p.side==='buy' ? 1 : -1;
-        return sum + dir*(s.priceDelta||0)*(p.size||0)*(p.entry_price||1);
+        const coinQty = (p.entry_price||1) > 0 ? (p.size||0) / (p.entry_price||1) : 0;
+        return sum + dir*(s.priceDelta||0)*coinQty*(p.entry_price||1);
       }, 0);
       const impacted = balance + impact;
       return { scenario:s.name, survived:impacted>balance*0.5, impactedBalance:impacted, loss:balance-impacted };
@@ -4665,7 +4666,14 @@ app.get('/api/status', (req,res) => res.json({
   balance: Balance.snapshot(), noTrade: NoTrade.verdict(),
   killSwitch: KillSwitch.snapshot(), bitget: Bitget.snapshot(),
   incidents: { open:Incidents.getOpen().length, pressure:Incidents.pressureScore() },
-  autonomous: { running:AutoEngine.running, scans:AutoEngine.stats.scansTotal },
+  autonomous: { running:AutoEngine.running||DemoEngine.running, scans:AutoEngine.stats.scansTotal||DemoEngine.stats.scans, trades:AutoEngine.stats.tradesAuto||DemoEngine.stats.trades },
+  demo: DemoEngine.snapshot(),
+  regime: Regime.regime,
+  ml: { trained: MLOptimizer.trained, rfTrees: MLOptimizer.RF?.trees?.length||0, rlEpisodes: RLAgent.episodes },
+  coinScanner: { enabled: CoinScanner.enabled, activeCoins: CoinScanner.activeCoins },
+  selfHeal: { enabled: true },
+  drawdownRecovery: { mode: DrawdownRecovery.mode || 'NORMAL' },
+  sentiment: { signal: FearGreed.cache?.label || 'N/A', value: FearGreed.cache?.value },
 }));
 
 // ── SNAPSHOT ──
@@ -9789,9 +9797,10 @@ const DemoEngine = {
 
         // Schon offen?
         const alreadyOpen = Object.values(this.positions).some(p => p.symbol === symbol);
-        if (alreadyOpen) continue;
+        const alreadyInDB = Trades.getActive().some(t => t.symbol === symbol);
+        if (alreadyOpen || alreadyInDB) continue;
 
-        // Kapital verfügbar?
+        if (Object.keys(this.positions).length >= 5) continue;
         const available = this.wallet.trading;
         if (available < 10) continue;
 

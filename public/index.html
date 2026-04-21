@@ -276,7 +276,7 @@ fetch('http://100.67.6.22:3000/api/status').then(r=>r.json()).then(d=>{
     <div class="nav" id="navRow2">
       <button class="nb" id="nb-trade" onclick="nav('trade',this)"><span class="nb-icon">💱</span><span class="nb-label">TRADE</span></button>
       <button class="nb" id="nb-bots" onclick="nav('bots',this)"><span class="nb-icon">⚙️</span><span class="nb-label">BOTS</span></button>
-      <button class="nb" id="nb-auto" onclick="nav('auto',this)"><span class="nb-icon">🤖</span><span class="nb-label">AUTONOM</span></button>
+      
       <button class="nb" id="nb-futures" onclick="nav('futures',this)"><span class="nb-icon">🚀</span><span class="nb-label">FUTURES</span></button>
       <button class="nb" id="nb-coins" onclick="nav('coins',this)"><span class="nb-icon">🪙</span><span class="nb-label">COINS</span></button>
       <button class="nb" id="nb-kapital" onclick="nav('kapital',this)"><span class="nb-icon">💰</span><span class="nb-label">KAPITAL</span></button>
@@ -798,171 +798,6 @@ fetch('http://100.67.6.22:3000/api/status').then(r=>r.json()).then(d=>{
 </div>
 
 <!-- AUTO ENGINE V9 -->
-<div class="scr" id="scr-auto">
-  <!-- HAUPT-SCHALTER: AUTONOM / MANUELL -->
-  <div class="card" style="border:2px solid var(--dim)" id="master-card">
-    <div class="ct">🎛 MODUS-SCHALTER</div>
-    <div style="display:flex;flex-direction:column;gap:10px">
-      <button id="btn-autonomous" onclick="setMode('AUTONOMOUS')" class="btn" style="
-        padding:18px;font-size:13px;letter-spacing:3px;border:2px solid var(--dim);
-        background:var(--bg2);color:var(--dim);border-radius:10px;font-family:monospace">
-        🤖 AUTONOM
-      </button>
-      <button id="btn-manual" onclick="setMode('MANUAL')" class="btn" style="
-        padding:18px;font-size:13px;letter-spacing:3px;border:2px solid var(--accent);
-        background:rgba(0,212,255,.1);color:var(--accent);border-radius:10px;font-family:monospace">
-        👤 MANUELL
-      </button>
-    </div>
-    <div style="margin-top:12px;font-family:monospace;font-size:9px;color:var(--dim);line-height:2">
-      <span style="color:var(--accent2)">🤖 AUTONOM</span> – Bot analysiert Markt, wählt selbst Grid/DCA/Combo und startet/stoppt automatisch<br>
-      <span style="color:var(--accent)">👤 MANUELL</span> – Du entscheidest alles, Bot führt nur aus was du eingibst
-    </div>
-    <div style="margin-top:10px;font-family:monospace;font-size:10px" id="mode-status-detail">—</div>
-  </div>
-
-  <!-- REGIME → BOT MAPPING ANZEIGE -->
-  <div class="card">
-    <div class="ct">REGIME → STRATEGIE MAPPING</div>
-    <div style="font-family:monospace;font-size:9px;line-height:2.5;color:var(--dim)">
-      <div style="display:flex;justify-content:space-between"><span style="color:var(--warn)">RANGING / NEUTRAL</span><span style="color:var(--text)">→ 📊 GRID BOT</span></div>
-      <div style="display:flex;justify-content:space-between"><span style="color:var(--accent2)">BULL</span><span style="color:var(--text)">→ 📉 DCA BOT (stündlich)</span></div>
-      <div style="display:flex;justify-content:space-between"><span style="color:var(--accent3)">SQUEEZE</span><span style="color:var(--text)">→ 📉 DCA BOT (30min, kleines TP)</span></div>
-      <div style="display:flex;justify-content:space-between"><span style="color:var(--gold)">CHOPPY</span><span style="color:var(--text)">→ 🔄 COMBO BOT (DCA + Grid)</span></div>
-      <div style="display:flex;justify-content:space-between"><span style="color:var(--danger)">BEAR</span><span style="color:var(--text)">→ ⏸ PAUSE (keine neuen Bots)</span></div>
-      <div style="display:flex;justify-content:space-between"><span style="color:var(--danger)">EXTREME BEAR</span><span style="color:var(--danger)">→ 🛑 ALLE BOTS STOPP</span></div>
-    </div>
-  </div>
-
-  <!-- AKTUELLE REGIME + ENTSCHEIDUNG -->
-  <div class="card">
-    <div class="ct">LETZTER AUTO-ENTSCHEID</div>
-    <div id="manager-decisions" style="font-family:monospace;font-size:9px;color:var(--dim)">Laden...</div>
-  </div>
-
-  <!-- MANUELL: Symbol sperren -->
-  <div class="card" id="manual-lock-card">
-    <div class="ct">👤 MANUELL: SYMBOL SPERREN</div>
-    <div style="font-size:9px;color:var(--dim);margin-bottom:8px">Gesperrte Symbole werden vom Auto-Modus nicht angefasst.</div>
-    <div class="g2" style="gap:6px">
-      <select class="fsel" id="lock-sym"><option value="BTCUSDT">BTC</option>
-<option value="ETHUSDT">ETH</option>
-<option value="SOLUSDT">SOL</option>
-<option value="BNBUSDT">BNB</option>
-<option value="XRPUSDT">XRP</option>
-<option value="ADAUSDT">ADA</option>
-<option value="AVAXUSDT">AVAX</option>
-<option value="DOTUSDT">DOT</option>
-<option value="DOGEUSDT">DOGE</option>
-<option value="LINKUSDT">LINK</option>
-<option value="ATOMUSDT">ATOM</option>
-<option value="UNIUSDT">UNI</option>
-<option value="LTCUSDT">LTC</option>
-<option value="NEARUSDT">NEAR</option>
-<option value="ARBUSDT">ARB</option>
-<option value="OPUSDT">OP</option>
-<option value="SUIUSDT">SUI</option>
-<option value="APTUSDT">APT</option>
-<option value="SEIUSDT">SEI</option>
-<option value="MATICUSDT">MATIC</option></select>
-      <div style="display:flex;gap:4px">
-        <button class="btn btn-warn btn-sm" onclick="lockSym()">🔒 SPERREN</button>
-        <button class="btn btn-blue btn-sm" onclick="unlockSym()">🔓 FREIG.</button>
-      </div>
-    </div>
-    <div id="lock-status" style="font-family:monospace;font-size:9px;color:var(--dim);margin-top:6px"></div>
-  </div>
-
-  <!-- EMERGENCY STOP -->
-  <div class="card">
-    <div class="ct">🛑 EMERGENCY STOP</div>
-    <div class="g2" style="gap:6px">
-      <button class="btn btn-danger" onclick="emergStop(null)">🛑 ALLE BOTS STOPPEN</button>
-      <button class="btn btn-warn" onclick="emergStop(document.getElementById('emerg-sym').value)">SYMBOL STOPPEN</button>
-    </div>
-    <select class="fsel" id="emerg-sym"><option value="BTCUSDT">BTC</option>
-<option value="ETHUSDT">ETH</option>
-<option value="SOLUSDT">SOL</option>
-<option value="BNBUSDT">BNB</option>
-<option value="XRPUSDT">XRP</option>
-<option value="ADAUSDT">ADA</option>
-<option value="AVAXUSDT">AVAX</option>
-<option value="DOTUSDT">DOT</option>
-<option value="DOGEUSDT">DOGE</option>
-<option value="LINKUSDT">LINK</option>
-<option value="ATOMUSDT">ATOM</option>
-<option value="UNIUSDT">UNI</option>
-<option value="LTCUSDT">LTC</option>
-<option value="NEARUSDT">NEAR</option>
-<option value="ARBUSDT">ARB</option>
-<option value="OPUSDT">OP</option>
-<option value="SUIUSDT">SUI</option>
-<option value="APTUSDT">APT</option>
-<option value="SEIUSDT">SEI</option>
-<option value="MATICUSDT">MATIC</option></select>
-  </div>
-
-  <!-- MANUELL: GRID ANPASSEN -->
-  <div class="card">
-    <div class="ct">👤 GRID MANUELL ANPASSEN</div>
-    <div class="fg"><label class="fl">GRID BOT ID</label><input class="fi" type="text" id="adj-id" placeholder="z.B. GRID_123456"></div>
-    <div class="g2" style="gap:6px">
-      <div class="fg"><label class="fl">NEUE UNTERE GRENZE $</label><input class="fi" type="number" id="adj-lower"></div>
-      <div class="fg"><label class="fl">NEUE OBERE GRENZE $</label><input class="fi" type="number" id="adj-upper"></div>
-    </div>
-    <div class="fg"><label class="fl">ANZAHL LEVELS</label><input class="fi" type="number" id="adj-levels" placeholder="10"></div>
-    <button class="btn btn-warn" onclick="adjustGrid()">⚙ GRID ANPASSEN</button>
-    <div id="adj-result" style="font-family:monospace;font-size:9px;color:var(--dim);margin-top:6px"></div>
-  </div>
-
-  <div class="card">
-    <div class="ct">AUTONOMOUS ENGINE SCAN</div>
-    <div class="ae-run stopped" id="ae-status">GESTOPPT</div>
-    <div class="g3" style="margin-top:8px">
-      <div><div style="font-size:9px;color:var(--dim)">SCANS</div><div style="font-family:monospace;color:var(--accent);font-size:18px;font-weight:900" id="ae-scans">0</div></div>
-      <div><div style="font-size:9px;color:var(--dim)">AUTO-TRADES</div><div style="font-family:monospace;color:var(--accent2);font-size:18px;font-weight:900" id="ae-trades">0</div></div>
-      <div><div style="font-size:9px;color:var(--dim)">FEHLER</div><div style="font-family:monospace;color:var(--danger);font-size:18px;font-weight:900" id="ae-errors">0</div></div>
-    </div>
-  </div>
-  <div class="card">
-    <div class="ct">KONFIGURATION</div>
-    <div class="fg"><label class="fl">Intervall (Sekunden)</label><input class="fi" type="number" id="ae-interval" value="60" min="15"></div>
-    <div class="fg"><label class="fl">Granularität</label><select class="fsel" id="ae-gran"><option value="15min">15 Min</option><option value="1h" selected>1 Stunde</option><option value="4h">4 Stunden</option></select></div>
-    <div class="fg"><label class="fl">Symbole</label>
-      <div class="chips" id="ae-sym-chips">
-        <div class="chip active" data-sym="BTCUSDT" onclick="toggleAeSym(this)">BTC</div>
-        <div class="chip active" data-sym="ETHUSDT" onclick="toggleAeSym(this)">ETH</div>
-        <div class="chip active" data-sym="SOLUSDT" onclick="toggleAeSym(this)">SOL</div>
-        <div class="chip active" data-sym="BNBUSDT" onclick="toggleAeSym(this)">BNB</div>
-        <div class="chip" data-sym="XRPUSDT" onclick="toggleAeSym(this)">XRP</div>
-        <div class="chip" data-sym="ADAUSDT" onclick="toggleAeSym(this)">ADA</div>
-        <div class="chip" data-sym="AVAXUSDT" onclick="toggleAeSym(this)">AVAX</div>
-        <div class="chip" data-sym="DOTUSDT" onclick="toggleAeSym(this)">DOT</div>
-        <div class="chip" data-sym="DOGEUSDT" onclick="toggleAeSym(this)">DOGE</div>
-        <div class="chip" data-sym="LINKUSDT" onclick="toggleAeSym(this)">LINK</div>
-        <div class="chip" data-sym="ATOMUSDT" onclick="toggleAeSym(this)">ATOM</div>
-        <div class="chip" data-sym="UNIUSDT" onclick="toggleAeSym(this)">UNI</div>
-        <div class="chip" data-sym="LTCUSDT" onclick="toggleAeSym(this)">LTC</div>
-        <div class="chip" data-sym="NEARUSDT" onclick="toggleAeSym(this)">NEAR</div>
-        <div class="chip" data-sym="ARBUSDT" onclick="toggleAeSym(this)">ARB</div>
-        <div class="chip" data-sym="OPUSDT" onclick="toggleAeSym(this)">OP</div>
-        <div class="chip" data-sym="SUIUSDT" onclick="toggleAeSym(this)">SUI</div>
-        <div class="chip" data-sym="APTUSDT" onclick="toggleAeSym(this)">APT</div>
-        <div class="chip" data-sym="SEIUSDT" onclick="toggleAeSym(this)">SEI</div>
-        <div class="chip" data-sym="MATICUSDT" onclick="toggleAeSym(this)">MATIC</div>
-      </div>
-    </div>
-    <div class="g2" style="gap:6px;margin-top:8px">
-      <button class="btn btn-buy" onclick="startAuto()">▶ STARTEN</button>
-      <button class="btn btn-sell" onclick="stopAuto()">■ STOPPEN</button>
-    </div>
-    <button class="btn btn-warn" style="margin-top:6px" onclick="applyAeConfig()">⚙ CONFIG ANWENDEN</button>
-  </div>
-  <div class="card"><div class="ct">LETZTES SIGNAL</div><div id="ae-last-sig" style="font-family:monospace;font-size:10px;color:var(--dim)">Noch kein Signal</div></div>
-  <div class="card"><div class="ct">ENGINE LOG</div><div style="max-height:200px;overflow-y:auto;font-family:monospace;font-size:9px" id="ae-log"><div style="color:var(--dim)">Engine nicht gestartet</div></div></div>
-</div>
-
-<!-- TRADE -->
 <div class="scr" id="scr-trade">
   <div class="card">
     <div class="ct" style="display:flex;justify-content:space-between;align-items:center">
@@ -2488,7 +2323,7 @@ function nav(n, btn) {
     if (n === 'trade')     { setTimeout(loadTradeGates, 800); refreshLiveTrades(); if(_liveTradeTimer) clearInterval(_liveTradeTimer); _liveTradeTimer=setInterval(refreshLiveTrades,5000); } else { if(_liveTradeTimer){clearInterval(_liveTradeTimer);_liveTradeTimer=null;} }
     if (n === 'chart')     { loadChart(); }
     if (n === 'advanced')  { loadAdvancedIndicators(); loadSafetiesStatus(); }
-    if (n === 'auto')      { loadManagerStatus(); refreshAutoPanel(); }
+    // auto tab removed
     if (n === 'futures')   { loadFuturesPositions(); loadFundingRate(); }
     if (n === 'features')  { loadToggles(); loadAlerts(); loadBackupStatus(); }
     if (n === 'bots')      { renderBotCreateForm('dca'); loadActiveBots(); }
@@ -5643,16 +5478,16 @@ async function refreshAutonom() {
     if (document.getElementById('autonom-errors')) document.getElementById('autonom-errors').textContent = d.stats?.errors || 0;
     // Log
     const logEl = document.getElementById('autonom-log');
-    if (logEl && d.log) {
-      logEl.innerHTML = (d.log||[]).slice(0,30).map(l=>
-        `<div style="padding:2px 0;border-bottom:1px solid rgba(255,255,255,.03);color:${(()=>{const t=typeof l==="string"?l:(l?.msg||"");return t.includes("ERR")?"var(--danger)":t.includes("TRADE")||t.includes("OK")?"var(--accent2)":"var(--dim)"})()}">${typeof l==="string"?l:(l?.ts||"")+" "+(l?.msg||JSON.stringify(l))}</div>`
+    const _logItems = d.recentSignals || d.log || []; if (logEl && _logItems.length > 0) {
+      logEl.innerHTML = _logItems.slice(0,30).map(l=>
+        `<div style="padding:2px 0;border-bottom:1px solid rgba(255,255,255,.03);color:${(()=>{const t=typeof l==="string"?l:(l?.msg||"");return t.includes("ERR")?"var(--danger)":t.includes("TRADE")||t.includes("OK")?"var(--accent2)":"var(--dim)"})()}">${typeof l==="string"?l:((l?.ts?new Date(l.ts).toLocaleTimeString("de",{hour:"2-digit",minute:"2-digit"}):"")+" "+(l?.direction||"")+" "+(l?.symbol||"")+" "+(l?.signals||l?.msg||""))}</div>`
       ).join('') || '<div style="color:var(--dim)">Keine Logs</div>';
     }
     // Letztes Signal
     const sigEl = document.getElementById('autonom-last-sig');
-    if (sigEl && d.lastSignal) {
-      const s = d.lastSignal;
-      sigEl.innerHTML = `<div style="color:var(--accent)">${s.symbol||''} · ${s.direction||''} · Score: ${s.score||0}</div><div style="color:var(--dim);font-size:8px">${s.strategy||''}</div>`;
+    const _lastSig = (d.recentSignals && d.recentSignals[0]) || d.lastSignal; if (sigEl && _lastSig) {
+      const s = _lastSig;
+      sigEl.innerHTML = `<div style="color:var(--accent)">${s.symbol||''} · ${s.direction||''} · Score: ${s.strength||s.score||0}</div><div style="color:var(--dim);font-size:8px">${s.signals||s.strategy||'UNIFIED'}</div>`;
     }
     // Sync Kriterien
     if (d.activeSymbols) {
@@ -5730,16 +5565,16 @@ async function refreshAutonom() {
   try {
     const st = await apiV9('/api/status');
     const setIcon = (id, ok) => { const el = document.getElementById(id); if(el) { el.textContent = ok ? '✅' : '❌'; el.style.color = ok ? 'var(--accent2)' : 'var(--danger)'; }};
-    setIcon('sys-ml', st.mlAccuracy > 0.5);
-    setIcon('sys-coins', st.coinScanner?.enabled);
-    setIcon('sys-heal', st.autoHeal?.enabled);
+    setIcon('sys-ml', st.ml?.trained || st.ml?.rfTrees > 0);
+    setIcon('sys-coins', st.coinScanner?.enabled !== false);
+    setIcon('sys-heal', st.selfHeal?.enabled !== false);
     setIcon('sys-drawdown', st.drawdownRecovery?.mode !== 'HALT');
     setIcon('sys-blacklist', true);
-    setIcon('sys-regime', !!st.regime);
+    setIcon('sys-regime', !!st.regime && st.regime !== 'UNKNOWN');
     const bayEl = document.getElementById('sys-bayesian');
-    if (bayEl) { bayEl.textContent = st.regime || '—'; bayEl.style.color = 'var(--accent)'; }
+    if (bayEl) { bayEl.textContent = (st.regime||'').toUpperCase() || '—'; bayEl.style.color = st.regime==='BULL'?'var(--accent2)':st.regime==='BEAR'?'var(--danger)':'var(--accent)'; }
     const sentEl = document.getElementById('sys-sentiment');
-    if (sentEl) { sentEl.textContent = st.sentiment?.signal || '—'; sentEl.style.color = 'var(--warn)'; }
+    if (sentEl) { const _sv=st.sentiment?.value; sentEl.textContent = (st.sentiment?.signal||'') + (_sv?' ('+_sv+')':''); sentEl.style.color = _sv<30?'var(--accent2)':_sv>70?'var(--danger)':'var(--warn)'; }
   } catch(e) {}
 }
 
