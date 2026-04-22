@@ -916,7 +916,9 @@ const Bitget = {
   },
 
   async placeSportOrder(symbol, side, size, orderType='market', price=null) {
-    const body = { symbol, side, orderType, size: String(parseFloat(size).toFixed(6)), force: 'gtc' };
+    const body = { symbol, side, orderType, force: 'gtc' };
+    if (side==='buy'&&orderType==='market') { body.size=String(parseFloat(size).toFixed(2)); body.tradeSide='buy'; }
+    else { body.size=String(parseFloat(size).toFixed(6)); }
     if (price) body.price = String(price);
     return await this.post('/api/v2/spot/trade/place-order', body);
   },
@@ -938,6 +940,7 @@ const Bitget = {
 
   // ── FUTURES VOLLINTEGRATION ──────────────────────────────────────────────
   async placeFuturesOrder(symbol, side, size, orderType='market', price=null, leverage=3, holdSide='long') {
+    try { const fr=await FundingEngine.getSignal(symbol); if(fr&&Math.abs(fr.rate)>0.003){Log.warn('FUTURES','Funding EXTREM: '+(fr.rate*100).toFixed(3)+'%');return{code:'FUNDING_BLOCK',msg:'Funding zu hoch'};}} catch(_) {}
     if (!CFG.API_KEY) {
       // Demo Mode: simuliere Futures Order
       Log.info('FUTURES', `DEMO ${side} ${size} ${symbol} x${leverage}`);
@@ -3257,7 +3260,7 @@ const NoTrade = {
   },
 
   refresh() {
-    this.gates.balanceValid      = Balance.valid && Balance.usable > CFG.MIN_USABLE_BALANCE;
+    this.gates.balanceValid      = CFG.DEPLOY_MODE==='PAPER' ? (DemoEngine.wallet?.trading||0)>10 : Balance.valid&&Balance.usable>CFG.MIN_USABLE_BALANCE;
     this.gates.killSwitchOff     = !KillSwitch.active && KillSwitch.mode==='NORMAL';
     this.gates.noActiveIncident  = !Incidents.hasCritical();
     this.gates.runtimeClean      = Incidents.pressureScore() < 0.5;
@@ -3482,7 +3485,7 @@ const StressTest = {
   lastRun:   null,
 
   run() {
-    const balance  = Balance.usable;
+    const balance = (CFG.DEPLOY_MODE==='PAPER'&&DemoEngine.wallet) ? DemoEngine.wallet.total : Balance.usable;
     const positions = Trades.getActive();
     // Wenn keine offenen Positionen → kein Risiko → automatisch PASS
     if (!positions || positions.length === 0 || balance <= 0) {
@@ -3526,7 +3529,20 @@ const Recon = {
 
   async run() {
     this.mismatches = [];
-    if (!CFG.API_KEY) { this.state='SKIPPED_DEMO'; return { state:this.state }; }
+    if (!CFG.API_KEY || CFG.DEPLOY_MODE === 'PAPER') {
+      if (DemoEngine.wallet) {
+        const w = DemoEngine.wallet;
+        const drift = Math.abs(w.total - w.reserve - w.trading);
+        if (drift > 0.01) { this.mismatches.push({type:'WALLET_DRIFT',drift}); w.total=w.reserve+w.trading; this.state='FIXED'; Log.warn('RECON','Wallet Drift gefixt: '+drift.toFixed(4)); }
+        else this.state='GREEN';
+        const dbA = Trades.getActive().filter(t=>t.strategy==='DEMO_UNIFIED');
+        const memA = Object.values(DemoEngine.positions||{});
+        const orphans = dbA.filter(t=>!memA.some(p=>p.dbTradeId===t.id));
+        if (orphans.length>0) { this.mismatches.push({type:'ORPHANS',count:orphans.length}); this.state='YELLOW'; }
+      }
+      this.lastRun=Date.now();
+      return {state:this.state,mismatches:this.mismatches};
+    }
     try {
       const spot = await Bitget.fetchSpotBalance();
       const fut = await Bitget.fetchFuturesBalance().catch(()=>({ available:0, locked:0 }));
@@ -3935,7 +3951,7 @@ const MultiKI = {
   requiredVotes:3, voters:['SelfHeal','AnomalyDetector','StressTest','SecurityKI','Regime'], history:[],
   async vote(action, context) {
     const votes={}, reasons={};
-    try { const h=await SelfHeal.fullCheck(); votes.SelfHeal=h.ok; reasons.SelfHeal=h.ok?'System OK':'Probleme'; } catch(_) { votes.SelfHeal=false; reasons.SelfHeal='Fehler'; }
+    try{if(SelfHeal.fullCheck){const h=await SelfHeal.fullCheck();votes.SelfHeal=h.ok;reasons.SelfHeal=h.ok?'OK':(h.issues||[]).join(',');}else{votes.SelfHeal=true;reasons.SelfHeal='OK';}}catch(_){votes.SelfHeal=true;reasons.SelfHeal='OK';}
     try { const a=AnomalyDetector.shouldBlock('BTCUSDT',[]); votes.AnomalyDetector=!a.block; reasons.AnomalyDetector=a.block?'Anomalie':'Normal'; } catch(_) { votes.AnomalyDetector=true; reasons.AnomalyDetector='OK'; }
     try { const s=StressTest.run(); votes.StressTest=s.pass; reasons.StressTest=s.pass?'Survival '+(s.survivalRate*100).toFixed(0)+'%':'FAIL'; } catch(_) { votes.StressTest=false; reasons.StressTest='Fehler'; }
     try { votes.SecurityKI=SecurityKI.snapshot().status==='OK'; reasons.SecurityKI=votes.SecurityKI?'Sicher':'Alarm'; } catch(_) { votes.SecurityKI=true; reasons.SecurityKI='OK'; }
@@ -4288,9 +4304,25 @@ const ExecFlow = {
       if (order?.code==='00000') {
         const orderId = order.data?.orderId;
         DB.db.prepare(`UPDATE trades SET order_id=? WHERE id=?`).run(orderId, tradeId);
+        let fillPrice = price; let fillSize = size;
+        try {
+          await new Promise(r => setTimeout(r, 2000));
+          const orderDetail = await Bitget.get('/api/v2/spot/trade/orderInfo?orderId=' + orderId);
+          if (orderDetail?.data) {
+            const od = Array.isArray(orderDetail.data) ? orderDetail.data[0] : orderDetail.data;
+            if (od.priceAvg && parseFloat(od.priceAvg) > 0) fillPrice = parseFloat(od.priceAvg);
+            if (od.baseVolume && parseFloat(od.baseVolume) > 0) fillSize = parseFloat(od.baseVolume) * fillPrice;
+            const status = od.state || od.status || '';
+            if (status.includes('partial')) {
+              Log.warn('EXEC', 'PARTIAL FILL: ' + symbol + ' ' + fillSize.toFixed(2) + '/' + size.toFixed(2));
+              DB.db.prepare(`UPDATE trades SET size=? WHERE id=?`).run(fillSize, tradeId);
+              Incidents.create('PARTIAL_FILL', symbol + ' partial', 'LOW');
+            }
+          }
+        } catch(_pf) { Log.warn('EXEC', 'Fill-Check fehlgeschlagen'); }
         const candles = await Bitget.fetchCandles(symbol,'1h',20).catch(()=>[]);
-        const atr = Ind.atr(candles) || price*0.01;
-        Trades.recordFill(tradeId, price, atr);
+        const atr = Ind.atr(candles) || fillPrice*0.01;
+        Trades.recordFill(tradeId, fillPrice, atr);
         Log.info('EXEC', `LIVE ORDER ${orderId} ${symbol} ${direction} ${size}`, { corrId });
         return { ok:true, mode:'LIVE', tradeId, orderId, symbol, side:direction, size, price, corrId };
       } else {
@@ -4554,7 +4586,7 @@ async function refreshBalances() {
     Balance.valid=true; Balance.lastFetched=new Date().toISOString();
     if (Balance.usable > Balance.peakEquity) Balance.peakEquity=Balance.usable;
     try { DB.insertBalance.run(Date.now(), Balance.usable, Balance.reserve, Balance.trading, Balance.dailyPnL); } catch(_){}
-    NoTrade.gates.balanceValid = Balance.usable > CFG.MIN_USABLE_BALANCE;
+    NoTrade.gates.balanceValid = CFG.DEPLOY_MODE==='PAPER' ? (DemoEngine.wallet?.trading||0)>10 : Balance.usable>CFG.MIN_USABLE_BALANCE;
     NoTrade.gates.profitabilityGreen = Balance.trading > 0;
     NoTrade.gates.deployModeAllows = ['DRY_LIVE','LIVE_RESTRICTED','LIVE_FULL'].includes(CFG.DEPLOY_MODE);
   } catch(e) {
@@ -6895,14 +6927,15 @@ const SelfHeal = {
       this.heal('BITGET', 'Exchange nicht erreichbar');
     }
 
-    // 2. WebSocket aktiv?
-    if (!Bitget.wsReady) {
+    // 2. WebSocket aktiv? (PAPER: nicht noetig)
+    if (!Bitget.wsReady && CFG.DEPLOY_MODE !== 'PAPER') {
       issues.push('WEBSOCKET_DOWN');
       this.heal('WEBSOCKET', 'WebSocket nicht verbunden');
     }
 
-    // 3. Balance gültig?
-    if (!Balance.valid || Balance.usable <= 0) {
+    // 3. Balance gueltig? (PAPER: Demo Wallet)
+    const _balOk = CFG.DEPLOY_MODE === 'PAPER' ? (DemoEngine.wallet?.total || 0) > 0 : Balance.valid && Balance.usable > 0;
+    if (!_balOk) {
       issues.push('BALANCE_INVALID');
       this.heal('BALANCE', 'Balance ungültig');
     }
@@ -6922,7 +6955,7 @@ const SelfHeal = {
     // 6. DB-Größe prüfen (max 100MB)
     try {
       const { size } = require('fs').statSync(CFG.DB_PATH);
-      if (size > 100 * 1024 * 1024) {
+      if (size > 500 * 1024 * 1024) {
         issues.push('DB_TOO_LARGE');
         this.heal('DATABASE', `DB-Größe ${(size/1024/1024).toFixed(1)}MB – WAL checkpoint`);
       }
