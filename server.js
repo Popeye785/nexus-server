@@ -2595,6 +2595,8 @@ const MLOptimizer = {
         // Perceptron Update: Gewichte in Richtung der richtigen Klasse verschieben
         features.forEach((f,i) => {
           this.weights[i] = (this.weights[i]||0) + this.lr * f * (trueLabel - pred.label);
+          this.weights[i] *= 0.999; // Weight Decay
+          this.weights[i] = Math.max(-5, Math.min(5, this.weights[i])); // Max-Norm
         });
         this.bias[trueLabel] = (this.bias[trueLabel]||0) + this.lr;
         this.bias[pred.label] = (this.bias[pred.label]||0) - this.lr;
@@ -3562,6 +3564,97 @@ const Recon = {
 };
 
 
+
+const SecurityKI = {
+  enabled:true, scanInterval:300000, timer:null, lastScan:null, alerts:[], fileHashes:{},
+  async checkFiles() {
+    const crypto=require('crypto'), fs2=require('fs');
+    const files=[process.env.HOME+'/NEXUS_CLEAN/server.js', process.env.HOME+'/NEXUS_CLEAN/.env'];
+    const results=[];
+    for (const f of files) {
+      try {
+        const hash=crypto.createHash('sha256').update(fs2.readFileSync(f)).digest('hex').slice(0,16);
+        const prev=this.fileHashes[f];
+        if (prev&&prev!==hash) { results.push({file:f.split('/').pop(),status:'CHANGED',prev,now:hash,severity:'HIGH'}); this._alert('FILE_CHANGED',f.split('/').pop()+' veraendert','HIGH'); }
+        else results.push({file:f.split('/').pop(),status:'OK',hash});
+        this.fileHashes[f]=hash;
+      } catch(e) { results.push({file:f.split('/').pop(),status:'ERROR',error:'Nicht lesbar'}); }
+    }
+    return results;
+  },
+  async checkProcesses() {
+    try {
+      const ps=require('child_process').execSync('ps aux',{timeout:5000}).toString();
+      const nodeProcs=ps.split('\n').filter(l=>l.includes('node')&&!l.includes('grep'));
+      const suspicious=nodeProcs.filter(l=>!l.includes('nexus')&&!l.includes('pm2')&&!l.includes('PM2')&&!l.includes('node_modules')&&!l.includes('npm')&&!l.includes('.pm2')&&l.trim()).map(l=>({process:l.trim().slice(0,100),status:'UNKNOWN'}));
+      if (suspicious.length>0) this._alert('UNKNOWN_PROCESS',suspicious.length+' unbekannte Prozesse','MEDIUM');
+      return {total:nodeProcs.length,suspicious,status:suspicious.length===0?'OK':'WARNING'};
+    } catch(e) { return {total:0,suspicious:[],status:'CHECK_FAILED'}; }
+  },
+  async checkConnections() {
+    try {
+      const ns=require('child_process').execSync('netstat -an 2>/dev/null || ss -tun 2>/dev/null',{timeout:5000}).toString();
+      const est=ns.split('\n').filter(l=>l.includes('ESTABLISHED')||l.includes('ESTAB'));
+      return {connections:est.length,blocked:[],status:'OK'};
+    } catch(e) { return {connections:0,blocked:[],status:'CHECK_FAILED'}; }
+  },
+  _alert(type,message,severity) {
+    this.alerts.unshift({ts:Date.now(),type,message,severity,time:new Date().toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'})});
+    if (this.alerts.length>100) this.alerts.pop();
+    Log.warn('SECURITY_KI',type+': '+message);
+    if (severity==='HIGH'||severity==='CRITICAL') TelegramBot.send('\u{1F6E1} SECURITY: '+type+'\n'+message);
+  },
+  async fullScan() {
+    const files=await this.checkFiles(), procs=await this.checkProcesses(), conns=await this.checkConnections();
+    this.lastScan=Date.now();
+    return {ok:files.every(f=>f.status==='OK')&&procs.status==='OK'&&conns.status==='OK', files,processes:procs,connections:conns,alerts:this.alerts.slice(0,20),lastScan:this.lastScan};
+  },
+  start() { if(this.timer)return; this.fullScan(); this.timer=setInterval(()=>this.fullScan(),this.scanInterval); Log.boot('Security-KI gestartet'); },
+  snapshot() { return {enabled:this.enabled,lastScan:this.lastScan,alertCount:this.alerts.length,recentAlerts:this.alerts.slice(0,10),status:this.alerts.filter(a=>a.severity==='HIGH'&&Date.now()-a.ts<3600000).length>0?'ALARM':'OK'}; }
+};
+
+const UpdateKI = {
+  currentVersion:'v9.0', gitCommit:null, lastCheck:null, updateHistory:[], rollbackAvailable:false,
+  async checkVersion() {
+    const {execSync}=require('child_process');
+    try {
+      const commit=execSync('cd '+process.env.HOME+'/NEXUS_CLEAN && git log --oneline -1',{timeout:5000}).toString().trim();
+      const branch=execSync('cd '+process.env.HOME+'/NEXUS_CLEAN && git branch --show-current',{timeout:5000}).toString().trim();
+      const status=execSync('cd '+process.env.HOME+'/NEXUS_CLEAN && git status --porcelain',{timeout:5000}).toString().trim();
+      this.gitCommit=commit.split(' ')[0]; this.lastCheck=Date.now();
+      const backups=parseInt(execSync('ls '+process.env.HOME+'/NEXUS_CLEAN/server.js.* 2>/dev/null | wc -l',{timeout:5000}).toString().trim());
+      this.rollbackAvailable=backups>0;
+      return {version:this.currentVersion,commit,branch,dirty:status.length>0,uncommittedChanges:status?status.split('\n').length:0,rollbackAvailable:this.rollbackAvailable,backupCount:backups,lastCheck:this.lastCheck};
+    } catch(e) { return {version:this.currentVersion,error:'Git Check fehlgeschlagen'}; }
+  },
+  async syntaxCheck() {
+    try { require('child_process').execSync('node --check '+process.env.HOME+'/NEXUS_CLEAN/server.js',{timeout:10000}); return {ok:true}; }
+    catch(e) { return {ok:false}; }
+  },
+  snapshot() { return {version:this.currentVersion,gitCommit:this.gitCommit,lastCheck:this.lastCheck,rollbackAvailable:this.rollbackAvailable,updateHistory:this.updateHistory.slice(0,20)}; }
+};
+
+const MultiKI = {
+  requiredVotes:3, voters:['SelfHeal','AnomalyDetector','StressTest','SecurityKI','Regime'], history:[],
+  async vote(action, context) {
+    const votes={}, reasons={};
+    try { const h=await SelfHeal.fullCheck(); votes.SelfHeal=h.ok; reasons.SelfHeal=h.ok?'System OK':'Probleme'; } catch(_) { votes.SelfHeal=false; reasons.SelfHeal='Fehler'; }
+    try { const a=AnomalyDetector.shouldBlock('BTCUSDT',[]); votes.AnomalyDetector=!a.block; reasons.AnomalyDetector=a.block?'Anomalie':'Normal'; } catch(_) { votes.AnomalyDetector=true; reasons.AnomalyDetector='OK'; }
+    try { const s=StressTest.run(); votes.StressTest=s.pass; reasons.StressTest=s.pass?'Survival '+(s.survivalRate*100).toFixed(0)+'%':'FAIL'; } catch(_) { votes.StressTest=false; reasons.StressTest='Fehler'; }
+    try { votes.SecurityKI=SecurityKI.snapshot().status==='OK'; reasons.SecurityKI=votes.SecurityKI?'Sicher':'Alarm'; } catch(_) { votes.SecurityKI=true; reasons.SecurityKI='OK'; }
+    try { votes.Regime=!['EXTREME_BEAR','FLASH_CRASH'].includes(Regime.regime); reasons.Regime='Regime: '+Regime.regime; } catch(_) { votes.Regime=true; reasons.Regime='OK'; }
+    const approved=Object.values(votes).filter(Boolean).length;
+    const passed=approved>=this.requiredVotes;
+    const result={action,passed,approved,total:Object.keys(votes).length,required:this.requiredVotes,votes,reasons,ts:Date.now(),time:new Date().toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'})};
+    this.history.unshift(result); if(this.history.length>50) this.history.pop();
+    Log.info('MULTI_KI',action+': '+(passed?'GENEHMIGT':'ABGELEHNT')+' ('+approved+'/'+Object.keys(votes).length+')');
+    if (!passed) TelegramBot.send('\u{1F916} Multi-KI ABGELEHNT: '+action+'\n'+Object.entries(votes).map(([k,v])=>(v?'\u2705 ':'\u274C ')+k+': '+reasons[k]).join('\n'));
+    return result;
+  },
+  snapshot() { return {requiredVotes:this.requiredVotes,voters:this.voters,recentVotes:this.history.slice(0,15),lastVote:this.history[0]||null}; }
+};
+
+
 // UNIFIED DECISION SCORE - Alle Datenquellen => ein Score
 const UnifiedScore = {
   WEIGHTS: {
@@ -3593,7 +3686,7 @@ const UnifiedScore = {
     } else scores.strategies={direction:'NEUTRAL',score:0,confidence:0};
     // ML
     if(MLOptimizer.trained){const ml=MLOptimizer.predict(candles);
-      scores.mlEnsemble=ml.signal!=='HOLD'&&ml.confidence>0.55?{direction:ml.signal,score:ml.signal==='BUY'?ml.confidence:-ml.confidence,confidence:ml.confidence}:{direction:'NEUTRAL',score:0,confidence:ml.confidence||0.5};
+      scores.mlEnsemble=ml.signal!=='HOLD'&&ml.confidence>0.58?{direction:ml.signal,score:ml.signal==='BUY'?ml.confidence:-ml.confidence,confidence:ml.confidence}:{direction:'NEUTRAL',score:0,confidence:ml.confidence||0.5};
     } else scores.mlEnsemble={direction:'NEUTRAL',score:0,confidence:0};
     // RL
     try{const rl=RLAgent.decide(candles);scores.rlAgent=rl.action!=='HOLD'?{direction:rl.action,score:rl.action==='BUY'?rl.confidence:-rl.confidence,confidence:Math.min(0.6,rl.confidence)}:{direction:'NEUTRAL',score:0,confidence:0.3};}catch(_){scores.rlAgent={direction:'NEUTRAL',score:0,confidence:0};}
@@ -4701,7 +4794,7 @@ app.get('/api/balance', async (req,res) => {
 // ── TICKER ──
 app.get('/api/ticker/:symbol', async (req,res) => {
   try { const ticker=await Bitget.fetchTicker(req.params.symbol); res.json({ ticker, fresh:true }); }
-  catch(e) { res.status(500).json({ error:e.message }); }
+  catch(e) { res.status(500).json({ error:'Interner Fehler' }); }
 });
 
 // ── INDICATORS ──
@@ -4984,7 +5077,7 @@ app.get('/api/funding/:symbol', async (req,res) => {
     const rate   = await FundingEngine.fetchFundingRate(req.params.symbol);
     const signal = FundingEngine.signal(rate);
     res.json({ symbol:req.params.symbol, rate, signal, cache:FundingEngine.cache });
-  } catch(e) { res.status(500).json({ error:e.message }); }
+  } catch(e) { res.status(500).json({ error:'Interner Fehler' }); }
 });
 
 // ── SAFETIES (Punkt 5) ──
@@ -5010,7 +5103,7 @@ app.get('/api/flashcrash/:symbol', async (req,res) => {
     const ticker  = await Bitget.fetchTicker(req.params.symbol).catch(()=>null);
     const signal  = FlashCrashBot.detect(candles, ticker);
     res.json({ symbol:req.params.symbol, signal, snapshot:FlashCrashBot.snapshot() });
-  } catch(e) { res.json({ error:e.message }); }
+  } catch(e) { res.json({ error:'Verarbeitung fehlgeschlagen' }); }
 });
 
 // ── TICK-LEVEL BACKTEST (Punkt 7) ──
@@ -5080,7 +5173,7 @@ app.get('/api/fullanalysis/:symbol', async (req,res) => {
       // Strategie-Signale
       signals:   Strategies.getAll(candles, ob),
     });
-  } catch(e) { res.status(500).json({ error:e.message }); }
+  } catch(e) { res.status(500).json({ error:'Interner Fehler' }); }
 });
 
 
@@ -5649,7 +5742,7 @@ app.get('/api/diagnose', async (req,res) => {
       botManager:  BotManager.snapshot(),
     });
   } catch(e) {
-    res.status(500).json({ error:e.message });
+    res.status(500).json({ error:'Interner Fehler' });
   }
 });
 
@@ -5906,7 +5999,7 @@ app.delete('/api/ml/persist/reset', (req,res) => {
     MLOptimizer.Perceptron.weights=new Array(35).fill(0); MLOptimizer.Perceptron.trained=0;
     RLAgent.qTable={}; RLAgent.episodes=0; RLAgent.epsilon=0.20;
     res.json({ ok:true, msg:'Alle ML-Modelle gelöscht – Training erforderlich' });
-  } catch(e) { res.status(500).json({ error:e.message }); }
+  } catch(e) { res.status(500).json({ error:'Interner Fehler' }); }
 });
 
 
@@ -5950,7 +6043,7 @@ app.post('/api/m1/benchmark', async (req,res) => {
   try {
     const results = await M1Optimizer.benchmark();
     res.json(results);
-  } catch(e) { res.status(500).json({ error:e.message }); }
+  } catch(e) { res.status(500).json({ error:'Interner Fehler' }); }
 });
 app.get('/api/m1/pm2config',  (req,res) => {
   res.setHeader('Content-Disposition','attachment; filename="ecosystem.m1.config.json"');
@@ -6122,7 +6215,7 @@ app.post('/webhook/tradingview', async (req,res) => {
     res.json({ ok:result.ok, tradeId:result.tradeId, mode:result.mode, symbol, direction, size:decision.size });
   } catch(e) {
     Log.error('TV', `Webhook error: ${e.message}`);
-    res.status(500).json({ error:e.message });
+    res.status(500).json({ error:'Interner Fehler' });
   }
 });
 
@@ -6169,7 +6262,7 @@ app.post('/api/futures/leverage', async (req,res) => {
   try {
     const result = CFG.API_KEY ? await Bitget.setLeverage(symbol, leverage, holdSide) : { ok:true, demo:true };
     res.json({ ok:true, result });
-  } catch(e) { res.status(500).json({ error:e.message }); }
+  } catch(e) { res.status(500).json({ error:'Interner Fehler' }); }
 });
 
 // ── INDICATOR BUNDLE (alle 47+ auf einmal) ──────────────────────────────────
@@ -6266,7 +6359,7 @@ app.post('/api/riskengine/montecarlo', async (req,res) => {
     const result = RiskEngine.monteCarlo(candles, simulations, horizon);
     if (!result) { res.json({ error: 'Simulation fehlgeschlagen' }); return; }
     res.json(result);
-  } catch(e) { res.json({ error: e.message }); }
+  } catch(e) { res.json({ error:'Verarbeitung fehlgeschlagen' }); }
 });
 
 app.post('/api/riskengine/bayesian', async (req,res) => {
@@ -6289,8 +6382,16 @@ app.post('/api/riskengine/bayesian', async (req,res) => {
     };
     const result = RiskEngine.bayesian.update(observations);
     res.json(result);
-  } catch(e) { res.json({ error: e.message }); }
+  } catch(e) { res.json({ error:'Verarbeitung fehlgeschlagen' }); }
 });
+
+app.get('/api/security/scan', async (req,res) => { try { res.json(await SecurityKI.fullScan()); } catch(e) { res.json({error:'Fehler'}); } });
+app.get('/api/security/snapshot', (req,res) => res.json(SecurityKI.snapshot()));
+app.get('/api/update/check', async (req,res) => { try { res.json(await UpdateKI.checkVersion()); } catch(e) { res.json({error:'Fehler'}); } });
+app.get('/api/update/syntax', async (req,res) => { try { res.json(await UpdateKI.syntaxCheck()); } catch(e) { res.json({error:'Fehler'}); } });
+app.get('/api/update/snapshot', (req,res) => res.json(UpdateKI.snapshot()));
+app.post('/api/multiki/vote', async (req,res) => { try { res.json(await MultiKI.vote(req.body.action||'CHECK',{})); } catch(e) { res.json({error:'Fehler'}); } });
+app.get('/api/multiki/snapshot', (req,res) => res.json(MultiKI.snapshot()));
 
 app.get('/api/unified/:symbol', async (req,res) => {
   try {
@@ -6300,7 +6401,7 @@ app.get('/api/unified/:symbol', async (req,res) => {
     const result = await UnifiedScore.compute(symbol, candles, ob);
     result.sizeUSDT = result.sizePct * (DemoEngine.wallet?.trading || Balance.trading || 1000);
     res.json(result);
-  } catch(e) { res.json({ error: e.message }); }
+  } catch(e) { res.json({ error:'Verarbeitung fehlgeschlagen' }); }
 });
 
 app.get('/api/aladdin/heatmap', async (req,res) => {
@@ -6311,7 +6412,7 @@ app.get('/api/aladdin/heatmap', async (req,res) => {
     const heat = await HeatMapEngine.compute(symbols);
     const coins = Object.entries(heat).map(([symbol, data]) => ({ symbol, ...data }));
     res.json({ coins });
-  } catch(e) { res.json({ error: e.message }); }
+  } catch(e) { res.json({ error:'Verarbeitung fehlgeschlagen' }); }
 });
 
 app.get('/api/aladdin/correlation', async (req,res) => {
@@ -6320,7 +6421,7 @@ app.get('/api/aladdin/correlation', async (req,res) => {
     const symbols = raw ? raw.split(',').filter(Boolean) : (AutoEngine.symbols || ['BTCUSDT','ETHUSDT','SOLUSDT']);
     const result = await CorrelationEngine.compute(symbols, 50);
     res.json(result);
-  } catch(e) { res.json({ error: e.message }); }
+  } catch(e) { res.json({ error:'Verarbeitung fehlgeschlagen' }); }
 });
 
 app.get('/api/aladdin/sentiment', async (req,res) => {
@@ -6336,7 +6437,7 @@ app.get('/api/aladdin/sentiment', async (req,res) => {
       score: SentimentEngine.score(n.title + ' ' + (n.description||'')).signal,
     }));
     res.json(scored);
-  } catch(e) { res.json({ error: e.message }); }
+  } catch(e) { res.json({ error:'Verarbeitung fehlgeschlagen' }); }
 });
 
 app.get('/api/aladdin/dashboard', async (req,res) => {
@@ -6348,7 +6449,7 @@ app.get('/api/aladdin/dashboard', async (req,res) => {
     const drawdown   = DrawdownTracker.analyze(candles);
     const volatility = VolatilityRegime.detect(candles);
     res.json({ symbol, sharpe, drawdown, volatility });
-  } catch(e) { res.json({ error: e.message }); }
+  } catch(e) { res.json({ error:'Verarbeitung fehlgeschlagen' }); }
 });
 
 
@@ -9254,7 +9355,10 @@ const RLAgent = {
     const maxQ = Math.max(...allQ);
     const confidence = allQ.length ? Math.max(0, (q - Math.min(...allQ)) / (maxQ - Math.min(...allQ)+0.001)) : 0.33;
 
-    return { action, state, mode:'EXPLOIT', confidence: Math.min(0.95,confidence+0.4), qValue:q.toFixed(4) };
+    // Confidence skaliert mit State-Erfahrung
+    const _stateQ = Object.values(this.qTable[state]||{});
+    const _stateExp = Math.min(1.0, _stateQ.reduce((s,v)=>s+Math.abs(v),0) / 3.0);
+    return { action, state, mode:'EXPLOIT', confidence: Math.min(0.75, confidence * _stateExp + 0.1), qValue:q.toFixed(4) };
   },
 
   // Update Q-Table nach Trade-Abschluss (das eigentliche Lernen)
@@ -11098,7 +11202,7 @@ const HistoricalTrainer = {
       // Bitget liefert max 1000 Kerzen pro Request
       const limit = Math.min(targetCandles, 3000);
       const candles = await Bitget.fetchCandles(symbol, granularity, limit);
-      if (!candles || candles.length < 100) {
+      if (!candles || candles.length < 200) {
         this.running = false; this.status = 'FEHLER: Zu wenig Daten';
         return { error:`Nur ${candles?.length||0} Kerzen verfügbar (min 100)` };
       }
@@ -11297,6 +11401,22 @@ async function boot() {
   // Meta-Wächter starten (alle 5 Minuten, versetzt zur SelfHeal)
   setTimeout(() => MetaWatchdog.start(300000), 90000); // 90s nach Boot starten
   Log.boot('Meta-Wächter geplant (startet in 90s)');
+
+  SecurityKI.start();
+  UpdateKI.checkVersion().catch(()=>{});
+  Log.boot('Security-KI + Update-KI aktiv');
+
+  // HEARTBEAT: Telegram Liveness alle 6h
+  setInterval(() => {
+    try {
+      const upH = (process.uptime()/3600).toFixed(1);
+      const demoS = DemoEngine.stats || {};
+      const w = DemoEngine.wallet || {};
+      TelegramBot.send('\u{1F493} NEXUS Heartbeat\nUptime: '+upH+'h\nWallet: '+(w.total||0).toFixed(2)+' USDT\nTrades: '+(demoS.trades||0)+' ('+(demoS.wins||0)+'W/'+(demoS.losses||0)+'L)\nOpen: '+Object.keys(DemoEngine.positions||{}).length+'\nGates: '+(NoTrade.verdict().allowTrade?'ALL_GREEN':NoTrade.verdict().reason));
+      Log.info('HEARTBEAT', 'Liveness OK');
+    } catch(_) {}
+  }, 6 * 3600 * 1000);
+  Log.boot('Heartbeat: Telegram alle 6h');
 
   // Reconciliation every 5min
   setInterval(async ()=>{ await Recon.run(); }, 300000);
