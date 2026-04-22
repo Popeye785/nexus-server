@@ -5752,6 +5752,19 @@ async function execManuell(side) {
 }
 
 init();
+
+async function refreshLivePositions(){try{const d=await apiV9('/api/demo/live');if(!d||!d.positions)return;
+const el=document.getElementById('dashboard-positions');
+if(el&&d.positions.length){el.innerHTML=d.positions.map(p=>{
+const col=p.direction==='BUY'?'var(--accent2)':'var(--danger)';
+const pc=p.unrealizedPnl>=0?'var(--accent2)':'var(--danger)';
+return '<div style="padding:6px 0;border-bottom:1px solid rgba(255,255,255,.05)"><div style="display:flex;justify-content:space-between"><span style="color:'+col+';font-weight:bold">'+p.symbol+' '+p.direction+'</span><span style="color:'+pc+';font-weight:bold">'+(p.unrealizedPnl>=0?'+':'')+p.unrealizedPnl.toFixed(2)+' U ('+(p.pnlPct>=0?'+':'')+p.pnlPct.toFixed(1)+'%)</span></div><div style="font-size:8px;color:var(--dim)">Entry: '+p.fillPrice.toFixed(2)+' → '+p.livePrice.toFixed(2)+' · '+p.age+'min</div></div>';}).join('');}else if(el){el.innerHTML='<div style="color:var(--dim)">Keine offenen Positionen</div>';}
+const dot=document.getElementById('pos-dot');if(dot)dot.textContent=d.positions.length>0?'🟢':'⚫';
+const cnt=document.getElementById('pos-count');if(cnt)cnt.textContent=d.positions.length>0?d.positions.length+' OFFEN':'';
+}catch(_){}}
+setInterval(refreshLivePositions,15000);
+setTimeout(refreshLivePositions,3000);
+
 </script>
 </body>
 </html>

@@ -89,10 +89,10 @@ const CFG = {
   EMA_SLOW:              26,
 
   // Exit
-  ATR_STOP_MULT:         2.0,
-  ATR_TP_MULT:           4.5,
-  TRAILING_PCT:          0.025,
-  MAX_HOLD_HOURS:        48,
+  ATR_STOP_MULT:         1.5,
+  ATR_TP_MULT:           3.0,
+  TRAILING_PCT:          0.015,
+  MAX_HOLD_HOURS:        12,
 
   // Stress
   STRESS_SURVIVAL_MIN:   0.60,
@@ -3595,8 +3595,8 @@ const ProfitOptimizer = {
 
   // Grenzen — KI darf nie ausserhalb dieser Werte
   LIMITS: {
-    atrSL:    { min: 1.5, max: 3.0 },
-    atrTP:    { min: 2.5, max: 6.0 },
+    atrSL:    { min: 1.0, max: 2.5 },
+    atrTP:    { min: 1.8, max: 4.0 },
     trailing: { min: 0.01, max: 0.05 },
     sizePct:  { min: 0.03, max: 0.25 },
     minRR:    2.0,  // R/R nie unter 2:1
@@ -6344,6 +6344,18 @@ app.post('/api/demo/start',       (req,res) => {
 });
 app.post('/api/demo/stop',        (req,res) => res.json(DemoEngine.stop()));
 app.get('/api/demo/trades',       (req,res) => res.json({ trades:DemoEngine.trades.slice(0,50), total:DemoEngine.trades.length }));
+app.get('/api/demo/live', (req,res) => {
+  const positions = Object.entries(DemoEngine.positions).map(([id, pos]) => {
+    const livePrice = Bitget.priceCache[pos.symbol]?.last || pos.fillPrice;
+    const dir = pos.direction === 'BUY' ? 1 : -1;
+    const coinQty = pos.size / pos.fillPrice;
+    const unrealizedPnl = dir * (livePrice - pos.fillPrice) * coinQty;
+    const pnlPct = pos.fillPrice > 0 ? dir * (livePrice - pos.fillPrice) / pos.fillPrice * 100 : 0;
+    return { ...pos, id, livePrice, unrealizedPnl: +unrealizedPnl.toFixed(4), pnlPct: +pnlPct.toFixed(2), age: Math.round((Date.now() - pos.openedAt) / 60000) };
+  });
+  res.json({ positions, totalUnrealized: +positions.reduce((s,p) => s + p.unrealizedPnl, 0).toFixed(4), wallet: DemoEngine.wallet });
+});
+
 app.get('/api/demo/positions',    (req,res) => res.json(Object.values(DemoEngine.positions)));
 app.get('/api/demo/wallet',       (req,res) => res.json(DemoEngine.wallet));
 
@@ -10148,8 +10160,8 @@ const DemoEngine = {
   running:       false,
   startCapital:  1000,    // Virtuelles Startkapital in USDT
   symbols:       ['BTCUSDT','ETHUSDT','SOLUSDT'],
-  granularity:   '1h',
-  intervalMs:    120000,  // Alle 2 Minuten scannen
+  granularity:   '15m',
+  intervalMs:    60000,  // Jede Minute scannen
   timer:         null,
 
   // Virtuelles Wallet (komplett unabhängig von echtem Balance)
