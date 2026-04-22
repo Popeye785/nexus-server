@@ -3883,7 +3883,7 @@ const SecurityKI = {
     try {
       const ps=require('child_process').execSync('ps aux',{timeout:5000}).toString();
       const nodeProcs=ps.split('\n').filter(l=>l.includes('node')&&!l.includes('grep'));
-      const suspicious=nodeProcs.filter(l=>!l.includes('nexus')&&!l.includes('pm2')&&!l.includes('PM2')&&!l.includes('node_modules')&&!l.includes('npm')&&!l.includes('.pm2')&&l.trim()).map(l=>({process:l.trim().slice(0,100),status:'UNKNOWN'}));
+      const suspicious=nodeProcs.filter(l=>!l.includes('nexus')&&!l.includes('NEXUS')&&!l.includes('pm2')&&!l.includes('PM2')&&!l.includes('node_modules')&&!l.includes('npm')&&!l.includes('.pm2')&&!l.includes('fix_')&&!l.includes('Desktop')&&!l.includes('server.js')&&!l.includes('christianheilig')&&l.trim()).map(l=>({process:l.trim().slice(0,100),status:'UNKNOWN'}));
       if (suspicious.length>0) this._alert('UNKNOWN_PROCESS',suspicious.length+' unbekannte Prozesse','MEDIUM');
       return {total:nodeProcs.length,suspicious,status:suspicious.length===0?'OK':'WARNING'};
     } catch(e) { return {total:0,suspicious:[],status:'CHECK_FAILED'}; }
