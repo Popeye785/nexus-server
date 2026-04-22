@@ -473,50 +473,6 @@ fetch('http://100.67.6.22:3000/api/status').then(r=>r.json()).then(d=>{
 <!-- DASHBOARD -->
 <div class="scr" id="scr-dashboard">
   <div class="card">
-    <div class="ct" style="display:flex;justify-content:space-between;align-items:center">
-      <span><span id="pos-dot">🔴</span> OFFENE POSITIONEN</span>
-      <span id="pos-count" style="color:var(--accent);font-size:10px">0</span>
-    </div>
-    <div id="dashboard-positions" style="font-family:monospace;font-size:10px;color:var(--dim)">Keine offenen Positionen</div>
-  </div>
-  <div class="card" style="margin-top:0">
-    <div class="ct">📈 EQUITY CURVE</div>
-    <canvas id="equity-mini-canvas" width="360" height="70" style="width:100%;display:block;border-radius:6px"></canvas>
-    <div style="display:flex;justify-content:space-between;font-family:monospace;font-size:8px;margin-top:4px">
-      <span style="color:var(--dim)" id="equity-mini-low">—</span>
-      <span style="color:var(--accent2)" id="equity-mini-cur">—</span>
-      <span style="color:var(--dim)" id="equity-mini-high">—</span>
-    </div>
-  </div>
-  <div id="dashboard-live-trades" style="font-family:monospace;font-size:9px;color:var(--dim)">Laden...</div>
-  <div class="card">
-    <div class="ct">MARKTPAAR</div>
-    <div class="chips" id="pairChips">
-      <div class="chip active" onclick="selPair('BTCUSDT',this)">BTC</div>
-      <div class="chip" onclick="selPair('ETHUSDT',this)">ETH</div>
-      <div class="chip" onclick="selPair('SOLUSDT',this)">SOL</div>
-      <div class="chip" onclick="selPair('BNBUSDT',this)">BNB</div>
-      <div class="chip" onclick="selPair('XRPUSDT',this)">XRP</div>
-      <div class="chip" onclick="selPair('ADAUSDT',this)">ADA</div>
-      <div class="chip" onclick="selPair('AVAXUSDT',this)">AVAX</div>
-      <div class="chip" onclick="selPair('DOTUSDT',this)">DOT</div>
-      <div class="chip" onclick="selPair('DOGEUSDT',this)">DOGE</div>
-      <div class="chip" onclick="selPair('LINKUSDT',this)">LINK</div>
-      <div class="chip" onclick="selPair('ATOMUSDT',this)">ATOM</div>
-      <div class="chip" onclick="selPair('UNIUSDT',this)">UNI</div>
-      <div class="chip" onclick="selPair('LTCUSDT',this)">LTC</div>
-      <div class="chip" onclick="selPair('NEARUSDT',this)">NEAR</div>
-      <div class="chip" onclick="selPair('ARBUSDT',this)">ARB</div>
-      <div class="chip" onclick="selPair('OPUSDT',this)">OP</div>
-      <div class="chip" onclick="selPair('SUIUSDT',this)">SUI</div>
-      <div class="chip" onclick="selPair('APTUSDT',this)">APT</div>
-      <div class="chip" onclick="selPair('SEIUSDT',this)">SEI</div>
-      <div class="chip" onclick="selPair('MATICUSDT',this)">MATIC</div>
-    </div>
-    <div class="ticker-big"><div class="ticker-price" id="tprice">—</div><div class="ticker-chg chg-fl" id="tchg">—</div></div>
-    <div style="font-size:9px;color:var(--dim);margin-top:2px" id="ptime">—</div>
-  </div>
-  <div class="card">
     <div class="ct">META-KI ENTSCHEIDUNG · V9 ULTIMATE</div>
     <div class="meta-box wait" id="metaBox">
       <div class="meta-dec" id="metaDec" style="color:var(--warn)">WARTE</div>
@@ -545,6 +501,51 @@ fetch('http://100.67.6.22:3000/api/status').then(r=>r.json()).then(d=>{
   <div class="card">
     <div class="ct">RISK GUARD · V9 KILL SWITCH</div>
     <div class="rv safe" id="riskVerdict"><div class="rv-ico">🛡</div><div><div class="rv-txt" id="rvTxt">WARTE AUF ANALYSE</div><div class="rv-sub" id="rvSub">Drawdown · ATR · Whale · News · Verlustserien</div></div></div>
+  </div>
+  <div class="card">
+    <div class="ct" style="display:flex;justify-content:space-between;align-items:center">
+      <span><span id="pos-dot">🔴</span> OFFENE POSITIONEN</span>
+      <span id="pos-count" style="color:var(--accent);font-size:10px">0</span>
+    </div>
+    <div id="dashboard-positions" style="font-family:monospace;font-size:10px;color:var(--dim)">Keine offenen Positionen</div>
+  </div>
+  <div class="card" style="margin-top:0">
+    <div class="ct">📈 EQUITY CURVE</div>
+    <canvas id="equity-mini-canvas" width="360" height="70" style="width:100%;display:block;border-radius:6px"></canvas>
+    <div style="display:flex;justify-content:space-between;font-family:monospace;font-size:8px;margin-top:4px">
+      <span style="color:var(--dim)" id="equity-mini-low">—</span>
+      <span style="color:var(--accent2)" id="equity-mini-cur">—</span>
+      <span style="color:var(--dim)" id="equity-mini-high">—</span>
+    </div>
+  </div>
+  <div id="dashboard-live-trades" style="font-family:monospace;font-size:9px;color:var(--dim)">Laden...</div>
+    <div class="card">
+    <div class="ct">MARKTPAAR</div>
+    <div class="chips" id="pairChips">
+      <div class="chip active" onclick="selPair('BTCUSDT',this)">BTC</div>
+      <div class="chip" onclick="selPair('ETHUSDT',this)">ETH</div>
+      <div class="chip" onclick="selPair('SOLUSDT',this)">SOL</div>
+      <div class="chip" onclick="selPair('BNBUSDT',this)">BNB</div>
+      <div class="chip" onclick="selPair('XRPUSDT',this)">XRP</div>
+      <div class="chip" onclick="selPair('ADAUSDT',this)">ADA</div>
+      <div class="chip" onclick="selPair('AVAXUSDT',this)">AVAX</div>
+      <div class="chip" onclick="selPair('DOTUSDT',this)">DOT</div>
+      <div class="chip" onclick="selPair('DOGEUSDT',this)">DOGE</div>
+      <div class="chip" onclick="selPair('LINKUSDT',this)">LINK</div>
+      <div class="chip" onclick="selPair('ATOMUSDT',this)">ATOM</div>
+      <div class="chip" onclick="selPair('UNIUSDT',this)">UNI</div>
+      <div class="chip" onclick="selPair('LTCUSDT',this)">LTC</div>
+      <div class="chip" onclick="selPair('NEARUSDT',this)">NEAR</div>
+      <div class="chip" onclick="selPair('ARBUSDT',this)">ARB</div>
+      <div class="chip" onclick="selPair('OPUSDT',this)">OP</div>
+      <div class="chip" onclick="selPair('SUIUSDT',this)">SUI</div>
+      <div class="chip" onclick="selPair('APTUSDT',this)">APT</div>
+      <div class="chip" onclick="selPair('SEIUSDT',this)">SEI</div>
+      <div class="chip" onclick="selPair('MATICUSDT',this)">MATIC</div>
+    </div>
+    <div class="ticker-big"><div class="ticker-price" id="tprice">—</div><div class="ticker-chg chg-fl" id="tchg">—</div></div>
+    <div style="font-size:9px;color:var(--dim);margin-top:2px" id="ptime">—</div>
+  </div>
   </div>
 </div>
 
@@ -4028,6 +4029,8 @@ const _origLoadV9Bal = loadV9Balance;
 // BOT MANAGER – Autonom / Manuell
 // ══════════════════════════════════════════════════════════════
 let _currentMode = 'MANUAL';
+// Auto-detect mode bei Pageload
+try { apiV9('/api/botmanager').then(d => { if(d.mode) { _currentMode=d.mode; updateModeUI(d.mode); } }).catch(()=>{}); } catch(_) {}
 
 async function setMode(mode) {
   try {
