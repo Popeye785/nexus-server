@@ -9804,6 +9804,10 @@ const DemoEngine = {
         const available = this.wallet.trading;
         if (available < 10) continue;
 
+        // NoTrade Gates pruefen
+        NoTrade.refresh();
+        if (!NoTrade.verdict().allowTrade) continue;
+
         // UnifiedScore: ALLE Datenquellen -> eine Entscheidung
         const ob = await Bitget.fetchOrderbook(symbol).catch(() => null);
         const uScore = await UnifiedScore.compute(symbol, candles, ob);
@@ -9890,7 +9894,16 @@ const DemoEngine = {
           if (price <= pos.takeProfit) exitReason = 'TAKE_PROFIT';
         }
 
-        // Zeit-Exit: max 24h offen
+        // Trailing Stop: Sichert Gewinne
+        if (pnlPct > 0.005) {
+          if (!pos.trailHigh) pos.trailHigh = price;
+          if (pos.direction === 'BUY' && price > pos.trailHigh) pos.trailHigh = price;
+          const trailDist = CFG.TRAILING_PCT || 0.015;
+          const trailStop = pos.trailHigh * (1 - trailDist);
+          if (price < trailStop) exitReason = 'TRAILING_STOP';
+        }
+
+        // Zeit-Exit
         if (Date.now() - pos.openedAt > CFG.MAX_HOLD_HOURS * 3600000) exitReason = 'TIME_EXIT';
 
         // Regime Exit
@@ -9945,6 +9958,8 @@ const DemoEngine = {
           try { Trades.close(pos.dbTradeId, exitPrice, exitReason); } catch(_) {}
         }
         delete this.positions[id];
+
+        try { require('fs').writeFileSync('/tmp/nexus_demo_wallet.json', JSON.stringify(this.wallet)); } catch(_) {}
 
         const emoji = pnl>0 ? '✅' : '❌';
         Log.info('DEMO', `${emoji} EXIT: ${pos.symbol} ${exitReason} PnL: ${pnl.toFixed(4)} USDT`);
