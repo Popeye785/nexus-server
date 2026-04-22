@@ -3892,8 +3892,8 @@ const AutonomousRepair = {
       if(DemoEngine.wallet&&Math.abs(DemoEngine.wallet.total-DemoEngine.wallet.reserve-DemoEngine.wallet.trading)>0.01)issues.push({type:'WALLET_DRIFT',severity:'HIGH',message:'Wallet Drift'});}catch(_){}
     try{const re=DB.db.prepare("SELECT COUNT(*) as n FROM system_log WHERE level='ERROR' AND ts > ?").get(now-300000)?.n||0;
       const oe=DB.db.prepare("SELECT COUNT(*) as n FROM system_log WHERE level='ERROR' AND ts > ? AND ts < ?").get(now-600000,now-300000)?.n||0;
-      if(re>oe*2&&re>5)issues.push({type:'ERROR_SPIKE',severity:'HIGH',message:'Errors x2: '+re});
-      TelegramAlarm.warn('MONITOR', 'Error-Rate verdoppelt: ' + re + ' in 5min');}catch(_){}
+      if(re>5&&oe>0&&re>oe*2){issues.push({type:'ERROR_SPIKE',severity:'HIGH',message:'Errors x2: '+re});
+      TelegramAlarm.warn('MONITOR', 'Error-Rate verdoppelt: ' + re + ' in 5min');}}catch(_){}
     return issues;
   },
   diagnose(issue) {
