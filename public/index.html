@@ -2506,7 +2506,7 @@ async function loadV9Status(){
           const age = Math.round((Date.now()-(t.created_at||0))/60000);
           const col = t.side==='buy'?'var(--accent2)':'var(--danger)';
           const pnl=t.realized_pnl||t.pnl||0;const pnlCol=pnl>=0?'var(--accent2)':'var(--danger)';const pnlStr=(pnl>=0?'+':'')+pnl.toFixed(4);const entry=t.entry_price?(' @ '+t.entry_price.toFixed(4)):'';
-return '<div style="padding:4px 0;border-bottom:1px solid rgba(255,255,255,.05)"><div style="display:flex;justify-content:space-between"><span style="color:'+col+'">'+t.symbol+' '+t.side.toUpperCase()+'</span><span style="color:'+pnlCol+';font-weight:bold">'+pnlStr+' USDT</span></div><div style="display:flex;justify-content:space-between;margin-top:2px"><span style="color:var(--dim);font-size:8px">'+(t.size||0).toFixed(4)+' USDT'+entry+'</span><span style="color:var(--dim);font-size:8px">'+age+'min</span></div></div>';
+return '<div style="padding:4px 0;border-bottom:1px solid rgba(255,255,255,.05)"><div style="display:flex;justify-content:space-between"><span style="color:'+col+'">'+t.symbol+' '+t.side.toUpperCase()+'</span><span style="color:'+pnlCol+';font-weight:bold">'+pnlStr+' USDT</span></div><div style="display:flex;justify-content:space-between;margin-top:2px"><span style="color:var(--dim);font-size:8px">'+(t.size||0).toFixed(2).toFixed(4)+' USDT'+entry+'</span><span style="color:var(--dim);font-size:8px">'+age+'min</span></div></div>';
         }).join(''); }
       }
     } catch(e) {}
@@ -5601,7 +5601,7 @@ async function refreshAutonom() {
           html += `<div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid rgba(255,255,255,.05)">
             <span style="color:var(--accent)">${t.symbol||''}</span>
             <span style="color:var(--warn)">${t.direction||''}</span>
-            <span style="color:var(--dim)">${(t.size||0).toFixed(4)}</span>
+            <span style="color:var(--dim)">${(t.size||0).toFixed(2).toFixed(4)}</span>
             <span style="color:${pnlCol}">${pnl>=0?'+':''}${pnl.toFixed(2)}U</span>
           </div>`;
         });
