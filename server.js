@@ -829,7 +829,7 @@ const Bitget = {
   },
 
   async fetchSpotBalance() {
-    const data = await this.get('/api/v2/spot/account/assets');
+    let data; try { data = await this.get('/api/v2/spot/account/assets'); } catch(e) { Log.warn('BITGET','Balance: '+e.message); return {available:0,locked:0}; }
     const usdt = data?.data?.find(a => a.coin === 'USDT');
     return usdt ? { available: parseFloat(usdt.available)||0, frozen: parseFloat(usdt.frozen)||0 } : { available:0, frozen:0 };
   },
@@ -920,15 +920,15 @@ const Bitget = {
     if (side==='buy'&&orderType==='market') { body.size=String(parseFloat(size).toFixed(2)); body.tradeSide='buy'; }
     else { body.size=String(parseFloat(size).toFixed(6)); }
     if (price) body.price = String(price);
-    return await this.post('/api/v2/spot/trade/place-order', body);
+    try { return await this.post('/api/v2/spot/trade/place-order', body); } catch(e) { Log.error('BITGET','Order: '+e.message); return {code:'ERROR',msg:e.message}; }
   },
 
   async cancelOrder(symbol, orderId) {
-    return await this.post('/api/v2/spot/trade/cancel-order', { symbol, orderId });
+    try { return await this.post('/api/v2/spot/trade/cancel-order',{symbol,orderId}); } catch(e) { return {code:'ERROR',msg:e.message}; }
   },
 
   async fetchOpenOrders(symbol) {
-    return await this.get(`/api/v2/spot/trade/unfilled-orders?symbol=${symbol}`);
+    try { return await this.get(`/api/v2/spot/trade/unfilled-orders?symbol=${symbol}`); } catch(e) { return {data:[]}; }
   },
 
   async setLeverage(symbol, leverage, holdSide='long') {
@@ -5647,6 +5647,9 @@ app.post('/api/arb/:id/close',    async (req,res) => res.json(await SpotFuturesA
 
 // ── TELEGRAM API ─────────────────────────────────────────────────────────────
 app.get('/api/telegram/status',   (req,res) => res.json({ enabled:TelegramBot.enabled, chatId:TelegramBot.chatId?'SET':'NOT_SET' }));
+app.get('/api/telegram/config',(req,res)=>res.json({enabled:TelegramBot.enabled,chatId:TelegramBot.chatId?'***'+String(TelegramBot.chatId).slice(-4):null}));
+app.post('/api/telegram/config',(req,res)=>{if(req.body.chatId)TelegramBot.chatId=req.body.chatId;res.json({ok:true});});
+
 app.post('/api/telegram/send',    async (req,res) => { await TelegramBot.send(req.body.msg||'Test'); res.json({ok:true}); });
 app.post('/api/telegram/report',  async (req,res) => { await TelegramBot.sendReport(); res.json({ok:true}); });
 
@@ -6972,58 +6975,13 @@ const SelfHeal = {
   // ── VOLLSTÄNDIGER SYSTEM-CHECK ─────────────────────────────────────────────
   async fullCheck() {
     const issues = [];
-    Log.info('HEAL', 'Vollständiger System-Check...');
-
-    // 1. Exchange erreichbar?
-    const ping = await Bitget.ping().catch(() => ({ ok:false, error:'Ping failed' }));
-    if (!ping.ok) {
-      issues.push('EXCHANGE_OFFLINE');
-      this.heal('BITGET', 'Exchange nicht erreichbar');
-    }
-
-    // 2. WebSocket aktiv? (PAPER: nicht noetig)
-    if (!Bitget.wsReady && CFG.DEPLOY_MODE !== 'PAPER') {
-      issues.push('WEBSOCKET_DOWN');
-      this.heal('WEBSOCKET', 'WebSocket nicht verbunden');
-    }
-
-    // 3. Balance gueltig? (PAPER: Demo Wallet)
-    const _balOk = CFG.DEPLOY_MODE === 'PAPER' ? (DemoEngine.wallet?.total || 0) > 0 : Balance.valid && Balance.usable > 0;
-    if (!_balOk) {
-      issues.push('BALANCE_INVALID');
-      this.heal('BALANCE', 'Balance ungültig');
-    }
-
-    // 4. Kill Switch fälschlicherweise aktiv?
-    if (KillSwitch.active) {
-      issues.push('KILL_SWITCH_ACTIVE');
-      this.heal('KILL_SWITCH', 'Kill Switch aktiv – prüfe ob Reset sinnvoll');
-    }
-
-    // 5. Zu viele offene Incidents?
-    if (Incidents.getOpen().length > 10) {
-      issues.push('TOO_MANY_INCIDENTS');
-      this.heal('MEMORY', 'Zu viele offene Incidents');
-    }
-
-    // 6. DB-Größe prüfen (max 100MB)
-    try {
-      const { size } = require('fs').statSync(CFG.DB_PATH);
-      if (size > 500 * 1024 * 1024) {
-        issues.push('DB_TOO_LARGE');
-        this.heal('DATABASE', `DB-Größe ${(size/1024/1024).toFixed(1)}MB – WAL checkpoint`);
-      }
-    } catch(_) {}
-
-    // 7. Strategien alle deaktiviert?
-    const activeStrats = Object.values(Strategies.registry).filter(s => s.active && !s.disabled);
-    if (activeStrats.length === 0) {
-      issues.push('ALL_STRATEGIES_DISABLED');
-      this.heal('STRATEGY', 'Alle Strategien deaktiviert');
-    }
-
-    Log.info('HEAL', `Check fertig. Probleme: ${issues.length > 0 ? issues.join(', ') : 'KEINE'}`);
-    return { ok: issues.length === 0, issues, timestamp: Date.now() };
+    const bal = CFG.DEPLOY_MODE === 'PAPER' ? (DemoEngine.wallet?.total || 0) : Balance.usable;
+    if (bal <= 10) issues.push('BALANCE_LOW');
+    try { DB.db.prepare('SELECT 1').get(); } catch(_) { issues.push('DB_ERROR'); }
+    if (CFG.DEPLOY_MODE === 'PAPER' && !DemoEngine.running) issues.push('DEMO_STOPPED');
+    if (process.memoryUsage().heapUsed / 1024 / 1024 > 800) issues.push('MEMORY_HIGH');
+    if (!NoTrade.gates.balanceValid || !NoTrade.gates.marketDataFresh) issues.push('GATES_RED');
+    return { ok: issues.length === 0, issues };
   },
 
   // ── ANGRIFFS-ABWEHR ────────────────────────────────────────────────────────
@@ -7965,6 +7923,13 @@ ${msg}`,
       case '/stopall':
         BotManager.emergencyStop(null);
         await this.send('🛑 ALLE Bots gestoppt');
+        break;
+      case '/safe':
+        DemoEngine.running = false;
+        AutoEngine.stop();
+        try { KillSwitch._preKill('MANUAL_SAFE', { via: 'Telegram' }); } catch(_) {}
+        await this.send('SAFE MODE aktiviert\nAlle Engines gestoppt\n/start zum Reaktivieren');
+        Log.warn('SAFE_MODE', 'Per Telegram aktiviert');
         break;
       case '/stop':
         AutoEngine.stop();
@@ -10210,15 +10175,16 @@ const DemoEngine = {
   // ── STARTEN ──────────────────────────────────────────────────────────────
   start(capital=1000) {
     if (this.running) return { error: 'Demo läuft bereits' };
-    this.startCapital      = capital;
-    this.wallet.total      = capital;
-    this.wallet.reserve    = 0;
-    this.wallet.trading    = capital;
-    this.wallet.startTotal = capital;
-    this.wallet.peakTotal  = capital;
-    this.wallet.dailyStart = capital;
-    this.wallet.pnl        = 0;
-    this.wallet.dailyPnl   = 0;
+    this.startCapital = capital;
+    const walletLoaded = this.wallet.reserve > 0 || this.wallet.pnl !== 0;
+    if (!walletLoaded) {
+      this.wallet.total=capital; this.wallet.reserve=0; this.wallet.trading=capital;
+      this.wallet.startTotal=capital; this.wallet.peakTotal=capital; this.wallet.dailyStart=capital;
+      this.wallet.pnl=0; this.wallet.dailyPnl=0;
+      Log.info('DEMO','Wallet neu: '+capital+' USDT');
+    } else {
+      Log.info('DEMO','Wallet geladen: T='+this.wallet.total.toFixed(2)+' R='+this.wallet.reserve.toFixed(2));
+    }
     this.positions         = {};
     this.trades            = [];
     this.signals           = [];
@@ -10285,8 +10251,10 @@ const DemoEngine = {
   },
 
   // ── HAUPT-SCAN-CYCLE ─────────────────────────────────────────────────────
+  _cycleBusy: false,
   async _cycle() {
-    if (!this.running) return;
+    if (this._cycleBusy || !this.running) return;
+    this._cycleBusy = true;
     this.stats.scans++;
 
     // Exits prüfen
@@ -10378,6 +10346,7 @@ const DemoEngine = {
     Log.info('DEMO', `TRADE: ${direction} ${symbol} ${size.toFixed(2)}USDT @ ${fillPrice.toFixed(4)} [${sigStr}]`);
     this.signals.unshift({ ts:Date.now(), symbol, direction, price:fillPrice, strength, signals:sigStr });
     if (this.signals.length > 50) this.signals.pop();
+    this._cycleBusy = false;
   },
 
   // ── EXITS PRÜFEN ─────────────────────────────────────────────────────────
@@ -10421,7 +10390,9 @@ const DemoEngine = {
         // Exit ausführen
         const exitSlip  = 0.0001 + Math.random() * 0.0003;
         const exitPrice = pos.direction==='BUY' ? price*(1-exitSlip) : price*(1+exitSlip);
-        const pnl       = dir * (exitPrice - pos.fillPrice) * (pos.size / pos.fillPrice);
+        const rawPnl    = dir * (exitPrice - pos.fillPrice) * (pos.size / pos.fillPrice);
+        const fees      = pos.size * 0.0025;
+        const pnl       = rawPnl - fees;
 
         // Wallet updaten: 70/30 Split bei Gewinn
         this.wallet.trading += pos.size; // Kapital zurueck
@@ -11830,6 +11801,8 @@ async function boot() {
   // Strategy auto-disable check every 6h
   setInterval(()=>{ Strategies.autoDisable(); }, 6*3600*1000);
 
+  try { if(LiveBenchmark?.init) LiveBenchmark.init(); } catch(_) {}
+
   // M1 OPTIMIERUNGEN – Keep-Alive, Memory, ARM64
   M1Optimizer.init();
   Log.boot(`Platform: ${process.arch} | Node: ${process.version} | ${process.arch==='arm64'?'M1 NATIVE ARM64 ✓':'x64 (für M1: Node.js ARM64 installieren)'}`);
@@ -11878,9 +11851,15 @@ async function boot() {
     }
   } catch(_) {}
 
+  try {
+    const _sw = require('fs').readFileSync('/tmp/nexus_demo_wallet.json', 'utf8');
+    const _wl = JSON.parse(_sw);
+    if (_wl && _wl.total > 0) { DemoEngine.wallet = _wl; Log.boot('Wallet geladen: T='+_wl.total.toFixed(2)); }
+  } catch(_) { Log.boot('Wallet: Neustart'); }
+
   // Auto-Start DemoEngine im PAPER Modus
   if (CFG.DEPLOY_MODE === 'PAPER' || !CFG.API_KEY) {
-    DemoEngine.start(1000);
+    DemoEngine.start(DemoEngine.wallet?.total || 1000);
     Log.boot('DemoEngine auto-gestartet (PAPER Modus)');
   }
 
