@@ -3835,7 +3835,8 @@ const TelegramAlarm = {
     if(level==='CRITICAL'||level==='EMERGENCY'){
       const ackId='ACK-'+now;this.pendingAcks[ackId]={...entry,ackId,escalated:false};
       msg+='\n\n/ack '+ackId+' zum Bestätigen';
-      setTimeout(()=>this.checkEscalation(ackId),this.ESCALATION_MS);
+      // Eskalation nur 1x, nicht wiederholt
+      if(!this._lastEscalation || Date.now()-this._lastEscalation > this.ESCALATION_MS) { setTimeout(()=>this.checkEscalation(ackId),this.ESCALATION_MS); }
     }
     try{await TelegramBot.send(msg);return{sent:true};}catch(e){return{sent:false};}
   },
@@ -3847,7 +3848,7 @@ const TelegramAlarm = {
     const a=this.pendingAcks[ackId];if(!a||a.acknowledged)return;
     if(!a.escalated){a.escalated=true;
       TelegramBot.send('🔴🔴 ESKALATION\nAlarm nicht bestätigt!\n'+a.module+': '+a.message+'\n\n⚠️ Safe Mode aktiviert\n/ack '+ackId);
-      try{if(DemoEngine.running){DemoEngine.running=false;Log.warn('SAFE_MODE','DemoEngine gestoppt');}}catch(_){}
+      try{if(DemoEngine.running && DemoEngine.wallet && DemoEngine.wallet.trading < 0){DemoEngine.running=false;Log.warn('SAFE_MODE','DemoEngine gestoppt — Wallet negativ');} else { Log.info('SAFE_MODE','Wallet OK — DemoEngine läuft weiter'); }}catch(_){}
     }
   },
   acknowledge(ackId){
@@ -3886,8 +3887,8 @@ const AutonomousRepair = {
     try{if(DemoEngine.running&&DemoEngine.stats.scans>20&&DemoEngine.stats.trades===0){const m=(now-(DemoEngine.stats.startedAt||now))/60000;if(m>120)issues.push({type:'NO_TRADES',severity:'MEDIUM',message:DemoEngine.stats.scans+' Scans, 0 Trades'});}}catch(_){}
     try{DB.db.prepare('SELECT 1').get();}catch(e){issues.push({type:'DB_ERROR',severity:'CRITICAL',message:'DB nicht lesbar'});
       TelegramAlarm.emergency('DB', 'Datenbank nicht lesbar — sofort pruefen');}
-    try{if(DemoEngine.wallet&&DemoEngine.wallet.total<0)issues.push({type:'WALLET_NEG',severity:'HIGH',message:'Wallet negativ'});
-        TelegramAlarm.critical('WALLET', 'Demo Wallet negativ: ' + DemoEngine.wallet.total.toFixed(2));
+    try{if(DemoEngine.wallet&&DemoEngine.wallet.trading<0)issues.push({type:'WALLET_NEG',severity:'HIGH',message:'Wallet Trading negativ: '+DemoEngine.wallet.trading.toFixed(2)});
+        if(DemoEngine.wallet.trading<0) TelegramAlarm.critical('WALLET', 'Demo Wallet Trading negativ: ' + DemoEngine.wallet.trading.toFixed(2));
       if(DemoEngine.wallet&&Math.abs(DemoEngine.wallet.total-DemoEngine.wallet.reserve-DemoEngine.wallet.trading)>0.01)issues.push({type:'WALLET_DRIFT',severity:'HIGH',message:'Wallet Drift'});}catch(_){}
     try{const re=DB.db.prepare("SELECT COUNT(*) as n FROM system_log WHERE level='ERROR' AND ts > ?").get(now-300000)?.n||0;
       const oe=DB.db.prepare("SELECT COUNT(*) as n FROM system_log WHERE level='ERROR' AND ts > ? AND ts < ?").get(now-600000,now-300000)?.n||0;
