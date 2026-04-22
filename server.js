@@ -89,9 +89,9 @@ const CFG = {
   EMA_SLOW:              26,
 
   // Exit
-  ATR_STOP_MULT:         1.8,
-  ATR_TP_MULT:           3.0,
-  TRAILING_PCT:          0.015,
+  ATR_STOP_MULT:         2.0,
+  ATR_TP_MULT:           4.5,
+  TRAILING_PCT:          0.025,
   MAX_HOLD_HOURS:        48,
 
   // Stress
@@ -3304,8 +3304,8 @@ const ExitEngine = {
       Log.info('EXIT', `Adaptive SL/TP: ${side} Entry=${entryPrice.toFixed(4)} SL=${adaptive.stopLoss.toFixed(4)} TP=${adaptive.takeProfit.toFixed(4)} [${adaptive.profile}] RR=${adaptive.riskReward.toFixed(2)}`);
     } else {
       this.tpslLevels[tradeId] = {
-        stopLoss:   entryPrice - m*atr*CFG.ATR_STOP_MULT,
-        takeProfit: entryPrice + m*atr*CFG.ATR_TP_MULT,
+        stopLoss:   entryPrice - m*atr*(ProfitOptimizer.getATR_SL()),
+        takeProfit: entryPrice + m*atr*(ProfitOptimizer.getATR_TP()),
         trailHigh:  entryPrice,
         atr, side, entry: entryPrice, adaptive: false,
       };
@@ -3343,7 +3343,7 @@ const ExitEngine = {
     if (l && side==='sell' && currentPrice<=l.takeProfit) exits.push({ reason:'TAKE_PROFIT', priority:9,  pnlPct });
     // 3. Trailing stop (only after in profit)
     if (l && pnlPct>0) {
-      const trail = side==='buy' ? l.trailHigh*(1-CFG.TRAILING_PCT) : l.trailHigh*(1+CFG.TRAILING_PCT);
+      const trail = side==='buy' ? l.trailHigh*(1-ProfitOptimizer.getTrailing()) : l.trailHigh*(1+ProfitOptimizer.getTrailing());
       if (side==='buy' && currentPrice<trail)  exits.push({ reason:'TRAILING_STOP', priority:8, pnlPct });
       if (side==='sell' && currentPrice>trail) exits.push({ reason:'TRAILING_STOP', priority:8, pnlPct });
     }
@@ -3565,6 +3565,163 @@ const Recon = {
 
 
 
+
+// ═════════════════════════════════════════════════════════════════════════════
+// PROFIT-OPTIMIZER KI — Dynamische SL/TP/Sizing basierend auf echten Ergebnissen
+// < 30 Trades: Festwerte (CFG). >= 30 Trades: KI optimiert. Bei Fehler: Fallback.
+// ═════════════════════════════════════════════════════════════════════════════
+const ProfitOptimizer = {
+  enabled: true,
+  minTrades: 30,
+  lastCalc: null,
+  calcInterval: 3600000, // 1h
+  current: null, // aktuelle optimierte Werte
+
+  // Grenzen — KI darf nie ausserhalb dieser Werte
+  LIMITS: {
+    atrSL:    { min: 1.5, max: 3.0 },
+    atrTP:    { min: 2.5, max: 6.0 },
+    trailing: { min: 0.01, max: 0.05 },
+    sizePct:  { min: 0.03, max: 0.25 },
+    minRR:    2.0,  // R/R nie unter 2:1
+  },
+
+  FEES: {
+    maker: 0.001,
+    taker: 0.001,
+    slippage: 0.0005,
+    total: 0.0025, // 0.25% round-trip
+  },
+
+  // Hauptfunktion: Berechne optimale Werte aus Trade-Historie
+  calculate() {
+    try {
+      const allTrades = DB.getAllTrades.all().filter(t => t.state === 'CLOSED' && t.realized_pnl !== null);
+      if (allTrades.length < this.minTrades) {
+        this.current = null;
+        return { mode: 'FESTWERTE', reason: allTrades.length + '/' + this.minTrades + ' Trades', trades: allTrades.length };
+      }
+
+      // Letzte 100 Trades analysieren
+      const recent = allTrades.slice(-100);
+      const wins = recent.filter(t => t.realized_pnl > 0);
+      const losses = recent.filter(t => t.realized_pnl < 0);
+      const winRate = wins.length / recent.length;
+
+      // Durchschnittliche Gewinn/Verlust Groessen
+      const avgWin = wins.length > 0 ? wins.reduce((s, t) => s + t.realized_pnl, 0) / wins.length : 0;
+      const avgLoss = losses.length > 0 ? Math.abs(losses.reduce((s, t) => s + t.realized_pnl, 0) / losses.length) : 1;
+      const currentRR = avgLoss > 0 ? avgWin / avgLoss : 1;
+
+      // Wie wurden Trades geschlossen?
+      const exitReasons = {};
+      recent.forEach(t => { const r = t.exit_reason || 'UNKNOWN'; exitReasons[r] = (exitReasons[r] || 0) + 1; });
+
+      // SL zu oft getriggert? → SL weiter setzen
+      const slHits = (exitReasons['STOP_LOSS'] || 0) / recent.length;
+      // TP zu selten erreicht? → TP enger setzen
+      const tpHits = (exitReasons['TAKE_PROFIT'] || 0) / recent.length;
+      // Trailing zu frueh? → Trailing weiter
+      const trailHits = (exitReasons['TRAILING_STOP'] || 0) / recent.length;
+      // Zeit-Exits? → Trades laufen zu lang ohne Ergebnis
+      const timeHits = (exitReasons['TIME_EXIT'] || 0) / recent.length;
+
+      // Dynamische Anpassung
+      let atrSL = CFG.ATR_STOP_MULT;
+      let atrTP = CFG.ATR_TP_MULT;
+      let trailing = CFG.TRAILING_PCT;
+
+      // SL zu oft getriggert (> 40% aller Exits) → weiter
+      if (slHits > 0.40) atrSL = Math.min(this.LIMITS.atrSL.max, atrSL + 0.3);
+      // SL fast nie getriggert (< 15%) → enger (spart Verluste)
+      if (slHits < 0.15 && losses.length > 3) atrSL = Math.max(this.LIMITS.atrSL.min, atrSL - 0.2);
+
+      // TP zu selten erreicht (< 20%) → enger
+      if (tpHits < 0.20 && wins.length > 3) atrTP = Math.max(this.LIMITS.atrTP.min, atrTP - 0.3);
+      // TP oft erreicht (> 50%) → weiter (mehr rausholen)
+      if (tpHits > 0.50) atrTP = Math.min(this.LIMITS.atrTP.max, atrTP + 0.3);
+
+      // Trailing zu oft (> 30%) → weiter
+      if (trailHits > 0.30) trailing = Math.min(this.LIMITS.trailing.max, trailing + 0.005);
+      // Trailing fast nie → enger
+      if (trailHits < 0.05 && wins.length > 5) trailing = Math.max(this.LIMITS.trailing.min, trailing - 0.003);
+
+      // R/R Check: TP/SL muss >= 2.0 sein
+      if (atrTP / atrSL < this.LIMITS.minRR) {
+        atrTP = atrSL * this.LIMITS.minRR;
+      }
+
+      // Clamp
+      atrSL = Math.max(this.LIMITS.atrSL.min, Math.min(this.LIMITS.atrSL.max, atrSL));
+      atrTP = Math.max(this.LIMITS.atrTP.min, Math.min(this.LIMITS.atrTP.max, atrTP));
+      trailing = Math.max(this.LIMITS.trailing.min, Math.min(this.LIMITS.trailing.max, trailing));
+
+      // Sizing: basierend auf Win-Rate und R/R
+      // Kelly Criterion: f = (WR * RR - (1-WR)) / RR
+      const rr = atrTP / atrSL;
+      const kelly = Math.max(0, (winRate * rr - (1 - winRate)) / rr);
+      const sizePct = Math.max(this.LIMITS.sizePct.min, Math.min(this.LIMITS.sizePct.max, kelly * 0.5));
+
+      // Expectancy berechnen
+      const avgATR = 0.008; // ~0.8% fuer BTC 1H
+      const tpPct = atrTP * avgATR;
+      const slPct = atrSL * avgATR;
+      const expectancy = winRate * (tpPct - this.FEES.total) - (1 - winRate) * (slPct + this.FEES.total);
+
+      this.current = {
+        atrSL: parseFloat(atrSL.toFixed(2)),
+        atrTP: parseFloat(atrTP.toFixed(2)),
+        trailing: parseFloat(trailing.toFixed(4)),
+        sizePct: parseFloat(sizePct.toFixed(4)),
+        rr: parseFloat(rr.toFixed(2)),
+        winRate: parseFloat(winRate.toFixed(4)),
+        expectancy: parseFloat(expectancy.toFixed(6)),
+        kelly: parseFloat(kelly.toFixed(4)),
+        exitProfile: exitReasons,
+        avgWin: parseFloat(avgWin.toFixed(4)),
+        avgLoss: parseFloat(avgLoss.toFixed(4)),
+        trades: recent.length,
+      };
+
+      this.lastCalc = Date.now();
+
+      Log.info('PROFIT_KI', 'Optimiert: SL=' + atrSL.toFixed(2) + ' TP=' + atrTP.toFixed(2) + ' Trail=' + (trailing*100).toFixed(1) + '% Size=' + (sizePct*100).toFixed(1) + '% RR=' + rr.toFixed(2) + ' WR=' + (winRate*100).toFixed(1) + '% Exp=' + (expectancy*10000).toFixed(1) + 'bps');
+
+      return { mode: 'KI_OPTIMIERT', ...this.current };
+    } catch (e) {
+      Log.warn('PROFIT_KI', 'Fehler: ' + e.message + ' — Fallback auf Festwerte');
+      this.current = null;
+      return { mode: 'FESTWERTE', reason: 'Fehler: ' + e.message };
+    }
+  },
+
+  // Getter: aktuelle Werte (KI oder Fallback)
+  getATR_SL() { return this.current ? this.current.atrSL : CFG.ATR_STOP_MULT; },
+  getATR_TP() { return this.current ? this.current.atrTP : CFG.ATR_TP_MULT; },
+  getTrailing() { return this.current ? this.current.trailing : CFG.TRAILING_PCT; },
+  getSizePct() { return this.current ? this.current.sizePct : null; },
+
+  snapshot() {
+    return {
+      enabled: this.enabled,
+      mode: this.current ? 'KI_OPTIMIERT' : 'FESTWERTE',
+      current: this.current,
+      lastCalc: this.lastCalc,
+      minTrades: this.minTrades,
+      limits: this.LIMITS,
+      fees: this.FEES,
+      fallback: { atrSL: CFG.ATR_STOP_MULT, atrTP: CFG.ATR_TP_MULT, trailing: CFG.TRAILING_PCT },
+    };
+  },
+
+  // Periodisch neu berechnen
+  start() {
+    this.calculate();
+    setInterval(() => this.calculate(), this.calcInterval);
+    Log.boot('ProfitOptimizer-KI gestartet (Recalc alle ' + (this.calcInterval/60000) + 'min)');
+  },
+};
+
 const SecurityKI = {
   enabled:true, scanInterval:300000, timer:null, lastScan:null, alerts:[], fileHashes:{},
   async checkFiles() {
@@ -3738,7 +3895,7 @@ const UnifiedScore = {
     let tw=0,ws=0;for(const[key,data]of Object.entries(scores)){const w=this.WEIGHTS[key]||0;if(w>0&&data.confidence>0){const ew2=w*data.confidence;ws+=data.score*ew2;tw+=ew2;}}
     const uScore=tw>0?ws/tw:0;const direction=uScore>0.08?'BUY':uScore<-0.08?'SELL':'HOLD';const confidence=Math.min(0.95,Math.abs(uScore));
     // SIZING
-    let sizePct=0;if(direction!=='HOLD'){sizePct=0.02+confidence*0.13;if(scores.monteCarlo?.scaleFactor)sizePct*=scores.monteCarlo.scaleFactor;if(scores.volatility?.positionScale)sizePct*=scores.volatility.positionScale;try{sizePct*=DrawdownRecovery.getRestrictions().sizeMult||1;}catch(_){}sizePct=Math.max(0.02,Math.min(0.20,sizePct));}
+    let sizePct=0;if(direction!=='HOLD'){sizePct=0.05+confidence*0.15;if(scores.monteCarlo?.scaleFactor)sizePct*=scores.monteCarlo.scaleFactor;if(scores.volatility?.positionScale)sizePct*=scores.volatility.positionScale;try{sizePct*=DrawdownRecovery.getRestrictions().sizeMult||1;}catch(_){}sizePct=Math.max(0.02,Math.min(0.20,sizePct));}
     const result={symbol,direction,confidence:parseFloat(confidence.toFixed(4)),unifiedScore:parseFloat(uScore.toFixed(4)),sizePct:parseFloat(sizePct.toFixed(4)),sizeUSDT:0,blocked:false,blocks:[],reason:direction==='HOLD'?'SCORE_ZU_SCHWACH ('+uScore.toFixed(3)+')':direction+' conf='+confidence.toFixed(2)+' size='+(sizePct*100).toFixed(1)+'%',sourcesUsed:Object.keys(scores).filter(k=>scores[k].confidence>0).length,totalSources:Object.keys(scores).length,scores,computeMs:Date.now()-t0};
     Log.info('UNIFIED',symbol+' => '+direction+' score='+uScore.toFixed(3)+' conf='+confidence.toFixed(2)+' size='+(sizePct*100).toFixed(1)+'% ['+result.sourcesUsed+'/'+result.totalSources+'] '+(Date.now()-t0)+'ms');
     return result;
@@ -6384,6 +6541,9 @@ app.post('/api/riskengine/bayesian', async (req,res) => {
     res.json(result);
   } catch(e) { res.json({ error:'Verarbeitung fehlgeschlagen' }); }
 });
+
+app.get('/api/profitoptimizer', (req,res) => res.json(ProfitOptimizer.snapshot()));
+app.post('/api/profitoptimizer/recalc', (req,res) => res.json(ProfitOptimizer.calculate()));
 
 app.get('/api/security/scan', async (req,res) => { try { res.json(await SecurityKI.fullScan()); } catch(e) { res.json({error:'Fehler'}); } });
 app.get('/api/security/snapshot', (req,res) => res.json(SecurityKI.snapshot()));
@@ -9938,7 +10098,7 @@ const DemoEngine = {
 
     // Positionsgroesse: UnifiedScore oder Fallback
     let size = overrideSize || this.wallet.trading * Math.min(0.25, 0.02 + strength * 0.13);
-    size = Math.max(5, Math.min(size, this.wallet.trading * 0.30));
+    size = Math.max(5, Math.min(size, this.wallet.trading * 0.40));
 
     // Slippage simulieren
     const atr      = Ind.atr(candles) || price*0.01;
@@ -10002,7 +10162,7 @@ const DemoEngine = {
         if (pnlPct > 0.005) {
           if (!pos.trailHigh) pos.trailHigh = price;
           if (pos.direction === 'BUY' && price > pos.trailHigh) pos.trailHigh = price;
-          const trailDist = CFG.TRAILING_PCT || 0.015;
+          const trailDist = ProfitOptimizer.getTrailing();
           const trailStop = pos.trailHigh * (1 - trailDist);
           if (price < trailStop) exitReason = 'TRAILING_STOP';
         }
@@ -11402,6 +11562,7 @@ async function boot() {
   setTimeout(() => MetaWatchdog.start(300000), 90000); // 90s nach Boot starten
   Log.boot('Meta-Wächter geplant (startet in 90s)');
 
+  ProfitOptimizer.start();
   SecurityKI.start();
   UpdateKI.checkVersion().catch(()=>{});
   Log.boot('Security-KI + Update-KI aktiv');
