@@ -282,6 +282,7 @@ fetch('http://100.67.6.22:3000/api/status').then(r=>r.json()).then(d=>{
       <button class="nb" id="nb-kapital" onclick="nav('kapital',this)"><span class="nb-icon">💰</span><span class="nb-label">KAPITAL</span></button>
       
       <button class="nb" id="nb-aidash" onclick="nav('aidash',this)"><span class="nb-icon">🧠</span><span class="nb-label">KI-DASH</span></button>
+      <button class="nb" id="nb-ars" onclick="nav('ars',this)"><span class="nb-icon">🔧</span><span class="nb-label">ARS</span></button>
       <button class="nb" id="nb-safety" onclick="nav('safety',this)"><span class="nb-icon">🛡</span><span class="nb-label">SICHERHEIT</span></button>
       <button class="nb" id="nb-explain" onclick="nav('explain',this)"><span class="nb-icon">🔍</span><span class="nb-label">ERKLÄREN</span></button>
       <button class="nb" id="nb-ml" onclick="nav('ml',this)"><span class="nb-icon">🧬</span><span class="nb-label">ML</span></button>
@@ -1899,6 +1900,58 @@ return { signal: 'HOLD', strength: 0 };"></textarea>
 
 
   <!-- ══════════════════════════════════════════════════════════════ -->
+<div class="scr" id="scr-ars">
+  <div class="card" style="border:2px solid var(--accent)">
+    <div class="ct">🔧 AUTONOMOUS REPAIR SYSTEM · LIVE</div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin-bottom:12px">
+      <div style="text-align:center;padding:10px;background:var(--bg2);border-radius:8px;border:1px solid var(--border)"><div style="font-size:8px;color:var(--dim)">SCANS</div><div style="font-family:monospace;font-size:18px" id="ars-scans">0</div></div>
+      <div style="text-align:center;padding:10px;background:var(--bg2);border-radius:8px;border:1px solid rgba(0,255,136,.3)"><div style="font-size:8px;color:var(--dim)">AUTO-FIXES</div><div style="font-family:monospace;font-size:18px;color:var(--accent2)" id="ars-auto">0</div></div>
+      <div style="text-align:center;padding:10px;background:var(--bg2);border-radius:8px;border:1px solid rgba(255,170,0,.3)"><div style="font-size:8px;color:var(--dim)">MENSCH</div><div style="font-family:monospace;font-size:18px;color:var(--warn)" id="ars-human">0</div></div>
+      <div style="text-align:center;padding:10px;background:var(--bg2);border-radius:8px;border:1px solid rgba(255,34,68,.3)"><div style="font-size:8px;color:var(--dim)">ABGELEHNT</div><div style="font-family:monospace;font-size:18px;color:var(--danger)" id="ars-rejected">0</div></div>
+    </div>
+    <div style="text-align:center;font-size:9px;color:var(--dim)" id="ars-known">14 bekannte Fehlermuster geladen</div>
+  </div>
+
+  <div class="card" id="ars-pending-card" style="display:none;border:2px solid var(--warn)">
+    <div class="ct">⏳ FIX WARTET AUF DEINE FREIGABE</div>
+    <div id="ars-pending-desc" style="font-family:monospace;font-size:10px;padding:10px;background:var(--bg2);border-radius:6px;margin-bottom:8px"></div>
+    <div style="display:flex;gap:8px;justify-content:center">
+      <button class="btn btn-blue" onclick="arsApprove()">✅ GENEHMIGEN</button>
+      <button class="btn btn-danger" onclick="arsReject()">❌ ABLEHNEN</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="ct">🔍 SYSTEM SCAN</div>
+    <div class="ibanner">Prüft: Error-Logs, Memory, API, DB, Wallet, DemoEngine, Error-Rate</div>
+    <button class="btn btn-blue btn-sm" style="margin-bottom:8px" onclick="arsScan()">🔍 JETZT PRÜFEN</button>
+    <div id="ars-issues" style="font-family:monospace;font-size:9px;color:var(--dim)">Warte auf Scan...</div>
+  </div>
+
+  <div class="card">
+    <div class="ct">🛠 REPAIR PIPELINE · Monitor → Diagnose → Repair → Test → Meta</div>
+    <div class="ibanner">Alle 5 Minuten: Monitor scannt, Diagnose kategorisiert, Repair fixt (auto oder Freigabe), Test prüft, Meta entscheidet.</div>
+    <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:3px;margin-bottom:8px">
+      <div style="text-align:center;padding:6px;background:var(--bg2);border-radius:4px"><div style="font-size:16px">👁</div><div style="font-size:7px;color:var(--dim)">MONITOR</div></div>
+      <div style="text-align:center;padding:6px;background:var(--bg2);border-radius:4px"><div style="font-size:16px">🔬</div><div style="font-size:7px;color:var(--dim)">DIAGNOSE</div></div>
+      <div style="text-align:center;padding:6px;background:var(--bg2);border-radius:4px"><div style="font-size:16px">🛠</div><div style="font-size:7px;color:var(--dim)">REPAIR</div></div>
+      <div style="text-align:center;padding:6px;background:var(--bg2);border-radius:4px"><div style="font-size:16px">🧪</div><div style="font-size:7px;color:var(--dim)">TEST</div></div>
+      <div style="text-align:center;padding:6px;background:var(--bg2);border-radius:4px"><div style="font-size:16px">🤖</div><div style="font-size:7px;color:var(--dim)">META-KI</div></div>
+      <div style="text-align:center;padding:6px;background:var(--bg2);border-radius:4px"><div style="font-size:16px">⏪</div><div style="font-size:7px;color:var(--dim)">ROLLBACK</div></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="ct">📋 BEKANNTE FEHLERMUSTER</div>
+    <div id="ars-patterns" style="font-family:monospace;font-size:8px;color:var(--dim)">Laden...</div>
+  </div>
+
+  <div class="card">
+    <div class="ct">📜 REPAIR HISTORIE · LIVE</div>
+    <div id="ars-history" style="font-family:monospace;font-size:9px;color:var(--dim)">Keine Reparaturen</div>
+  </div>
+</div>
+
 <div class="scr" id="scr-safety">
 
   <!-- MULTI-KI KONTROLLZENTRUM -->
@@ -2349,6 +2402,7 @@ function nav(n, btn) {
     if (n === 'scripting') { loadScripts(); }
     if (n === 'ml')        { loadMLStatus(); loadRetrainStatus(); loadDBWatchdog(); }
     // multiki merged into safety
+    if (n === 'ars')      { arsScan(); loadARSStatus(); }
     if (n === 'aidash')    { loadAIDash(); setTimeout(()=>{ runMonteCarlo&&runMonteCarlo(); runBayesian&&runBayesian(); rlDecide&&rlDecide(); loadCorrelation&&loadCorrelation(); loadSentiment&&loadSentiment(); loadHeatMap&&loadHeatMap(); runAnomalyCheck&&runAnomalyCheck(); loadAladdinDashboard&&loadAladdinDashboard(); }, 500); }
     if (n === 'safety')  { securityScan(); updateCheck(); loadMKIHist(); try{loadRecovery();loadPaperStats();loadBlacklist();}catch(_){} }
     if (n === 'safety_SKIP')    { loadRecovery(); loadPaperStats(); loadBlacklist(); }

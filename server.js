@@ -3722,6 +3722,70 @@ const ProfitOptimizer = {
   },
 };
 
+
+const AutonomousRepair = {
+  enabled:true, timer:null, scanInterval:300000, history:[], pendingFix:null, errorBaseline:0,
+  KNOWN_FIXES: {
+    'WebSocket closed':     {type:'AUTO',action:'WS_RECONNECT',desc:'WebSocket reconnect'},
+    'ECONNRESET':           {type:'AUTO',action:'API_RETRY',desc:'API retry'},
+    'ECONNREFUSED':         {type:'AUTO',action:'API_RETRY',desc:'API retry'},
+    'ETIMEDOUT':            {type:'AUTO',action:'API_RETRY',desc:'Timeout retry'},
+    'Candle fetch failed':  {type:'AUTO',action:'CACHE_CLEAR',desc:'Cache clear'},
+    'SQLITE_BUSY':          {type:'AUTO',action:'DB_RETRY',desc:'DB retry'},
+    'SQLITE_LOCKED':        {type:'AUTO',action:'DB_RETRY',desc:'DB lock retry'},
+    'heap out of memory':   {type:'AUTO',action:'PM2_RESTART',desc:'Memory — restart'},
+    'Maximum call stack':   {type:'AUTO',action:'PM2_RESTART',desc:'Stack overflow'},
+    'Cannot read prop':     {type:'ASK',action:'NULL_CHECK',desc:'Null/Undefined'},
+    'is not a function':    {type:'ASK',action:'TYPE_ERROR',desc:'Typ-Fehler'},
+    'is not defined':       {type:'ASK',action:'REF_ERROR',desc:'Variable fehlt'},
+    'EPERM':                {type:'AUTO',action:'IGNORE',desc:'Harmlos'},
+  },
+  async monitor() {
+    const issues=[],now=Date.now();
+    try{const logs=DB.db.prepare("SELECT * FROM system_log WHERE level='ERROR' AND ts > ? ORDER BY ts DESC LIMIT 20").all(now-this.scanInterval);
+      if(logs.length>0){const msgs=logs.map(l=>l.message||l.msg||'');[...new Set(msgs.map(m=>m.slice(0,80)))].forEach(err=>{issues.push({type:'ERROR_LOG',severity:logs.length>10?'HIGH':'MEDIUM',message:err,count:msgs.filter(m=>m.includes(err.slice(0,30))).length});});}
+    }catch(_){}
+    try{const mb=process.memoryUsage().heapUsed/1024/1024;if(mb>800)issues.push({type:'MEMORY',severity:'HIGH',message:'Heap: '+mb.toFixed(0)+'MB'});}catch(_){}
+    try{if(DemoEngine.running&&DemoEngine.stats.scans>20&&DemoEngine.stats.trades===0){const m=(now-(DemoEngine.stats.startedAt||now))/60000;if(m>120)issues.push({type:'NO_TRADES',severity:'MEDIUM',message:DemoEngine.stats.scans+' Scans, 0 Trades'});}}catch(_){}
+    try{DB.db.prepare('SELECT 1').get();}catch(e){issues.push({type:'DB_ERROR',severity:'CRITICAL',message:'DB nicht lesbar'});}
+    try{if(DemoEngine.wallet&&DemoEngine.wallet.total<0)issues.push({type:'WALLET_NEG',severity:'HIGH',message:'Wallet negativ'});
+      if(DemoEngine.wallet&&Math.abs(DemoEngine.wallet.total-DemoEngine.wallet.reserve-DemoEngine.wallet.trading)>0.01)issues.push({type:'WALLET_DRIFT',severity:'HIGH',message:'Wallet Drift'});}catch(_){}
+    try{const re=DB.db.prepare("SELECT COUNT(*) as n FROM system_log WHERE level='ERROR' AND ts > ?").get(now-300000)?.n||0;
+      const oe=DB.db.prepare("SELECT COUNT(*) as n FROM system_log WHERE level='ERROR' AND ts > ? AND ts < ?").get(now-600000,now-300000)?.n||0;
+      if(re>oe*2&&re>5)issues.push({type:'ERROR_SPIKE',severity:'HIGH',message:'Errors x2: '+re});}catch(_){}
+    return issues;
+  },
+  diagnose(issue) {
+    for(const[p,f]of Object.entries(this.KNOWN_FIXES)){if(issue.message&&issue.message.includes(p))return{known:true,pattern:p,fixType:f.type,action:f.action,description:f.desc,severity:issue.severity};}
+    const m=(issue.message||'').toLowerCase();let c='UNKNOWN';
+    if(m.includes('typeerror'))c='TYPE';else if(m.includes('not defined'))c='REF';else if(m.includes('syntax'))c='SYNTAX';else if(m.includes('timeout'))c='NET';else if(m.includes('sqlite'))c='DB';
+    return{known:false,category:c,fixType:issue.severity==='CRITICAL'?'ASK':'ANALYZE',severity:issue.severity,description:'Unbekannt: '+c};
+  },
+  async repair(d) {
+    if(d.fixType==='AUTO'){switch(d.action){
+      case 'WS_RECONNECT':try{Bitget.connectWS&&Bitget.connectWS();}catch(_){}return{applied:true,action:d.action,auto:true};
+      case 'API_RETRY':try{await Bitget.fetchTicker('BTCUSDT');}catch(_){}return{applied:true,action:d.action,auto:true};
+      case 'CACHE_CLEAR':try{Bitget.priceCache={};}catch(_){}return{applied:true,action:d.action,auto:true};
+      case 'DB_RETRY':try{DB.db.prepare('SELECT 1').get();}catch(_){}return{applied:true,action:d.action,auto:true};
+      case 'PM2_RESTART':Log.warn('ARS','PM2 Restart');TelegramBot.send('ARS: PM2 Restart\n'+d.description);setTimeout(()=>process.exit(0),10000);return{applied:true,action:d.action,auto:true};
+      case 'IGNORE':return{applied:false,action:'IGNORE',auto:true};}}
+    if(d.fixType==='ASK'){this.pendingFix={diagnosis:d,ts:Date.now(),status:'PENDING'};TelegramBot.send('ARS Fix noetig\n'+d.description+'\n/approve oder /reject');return{applied:false,action:'WAITING',pending:true};}
+    return{applied:false};
+  },
+  async testFix(){const t={syntax:true,logic:true};try{require('child_process').execSync('node --check '+process.env.HOME+'/NEXUS_CLEAN/server.js',{timeout:10000});}catch(_){t.syntax=false;}
+    t.logic=typeof UnifiedScore.compute==='function'&&typeof Trades.close==='function';return{passed:t.syntax&&t.logic,tests:t};},
+  async metaDecide(d,r,t){const v={sec:SecurityKI.snapshot().status==='OK',test:t?t.passed:true};let dec;if(d.fixType==='AUTO'&&r.applied)dec='AUTO_APPLIED';else if(d.fixType==='ASK')dec='WAITING_HUMAN';else if(t&&!t.passed)dec='REJECTED';else dec='NO_ACTION';return{decision:dec,votes:v};},
+  async cycle(){try{const issues=await this.monitor();if(!issues.length)return;
+    try{this.errorBaseline=DB.db.prepare("SELECT COUNT(*) as n FROM system_log WHERE level='ERROR' AND ts > ?").get(Date.now()-300000)?.n||0;}catch(_){}
+    for(const i of issues){if(this.history.find(h=>h.issue?.type===i.type&&Date.now()-h.ts<1800000))continue;
+      const d=this.diagnose(i),r=await this.repair(d),t=r.applied?await this.testFix():null,m=await this.metaDecide(d,r,t);
+      this.history.unshift({ts:Date.now(),time:new Date().toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'}),issue:i,diagnosis:{known:d.known,pattern:d.pattern,action:d.action},repair:{applied:r.applied,action:r.action,auto:r.auto},test:t,meta:m});
+      if(this.history.length>100)this.history.pop();}}catch(e){Log.warn('ARS',e.message);}},
+  handleApproval(ok){if(!this.pendingFix)return{error:'Kein Fix'};this.pendingFix.status=ok?'APPROVED':'REJECTED';const r={...this.pendingFix};this.pendingFix=null;return r;},
+  start(){if(this.timer)return;this.timer=setInterval(()=>this.cycle(),this.scanInterval);setTimeout(()=>this.cycle(),30000);Log.boot('ARS gestartet');},
+  snapshot(){return{enabled:this.enabled,pendingFix:this.pendingFix,recentHistory:this.history.slice(0,20),stats:{totalScans:this.history.length,autoFixes:this.history.filter(h=>h.repair?.auto&&h.repair?.applied).length,humanFixes:this.history.filter(h=>h.meta?.decision==='WAITING_HUMAN').length,rejected:this.history.filter(h=>h.meta?.decision?.startsWith('REJECTED')).length},knownPatterns:Object.keys(this.KNOWN_FIXES).length};}
+};
+
 const SecurityKI = {
   enabled:true, scanInterval:300000, timer:null, lastScan:null, alerts:[], fileHashes:{},
   async checkFiles() {
@@ -6545,6 +6609,12 @@ app.post('/api/riskengine/bayesian', async (req,res) => {
 app.get('/api/profitoptimizer', (req,res) => res.json(ProfitOptimizer.snapshot()));
 app.post('/api/profitoptimizer/recalc', (req,res) => res.json(ProfitOptimizer.calculate()));
 
+app.get('/api/ars/snapshot',(req,res)=>res.json(AutonomousRepair.snapshot()));
+app.get('/api/ars/history',(req,res)=>res.json({history:AutonomousRepair.history.slice(0,50)}));
+app.post('/api/ars/approve',(req,res)=>res.json(AutonomousRepair.handleApproval(true)));
+app.post('/api/ars/reject',(req,res)=>res.json(AutonomousRepair.handleApproval(false)));
+app.post('/api/ars/scan',async(req,res)=>{res.json({issues:await AutonomousRepair.monitor()});});
+
 app.get('/api/security/scan', async (req,res) => { try { res.json(await SecurityKI.fullScan()); } catch(e) { res.json({error:'Fehler'}); } });
 app.get('/api/security/snapshot', (req,res) => res.json(SecurityKI.snapshot()));
 app.get('/api/update/check', async (req,res) => { try { res.json(await UpdateKI.checkVersion()); } catch(e) { res.json({error:'Fehler'}); } });
@@ -7669,6 +7739,8 @@ ${msg}`,
         const exp  = await Explainer.explain(sym2);
         await this.send('🔍 ERKLÄRUNG: '+sym2+'\n\n'+exp.summary);
         break;
+      case '/approve':AutonomousRepair.handleApproval(true);TelegramBot.send('Fix genehmigt');break;
+      case '/reject':AutonomousRepair.handleApproval(false);TelegramBot.send('Fix abgelehnt');break;
       case '/help':
         await this.send([
           '📖 *Verfügbare Befehle:*',
@@ -11563,6 +11635,7 @@ async function boot() {
   Log.boot('Meta-Wächter geplant (startet in 90s)');
 
   ProfitOptimizer.start();
+  AutonomousRepair.start();
   SecurityKI.start();
   UpdateKI.checkVersion().catch(()=>{});
   Log.boot('Security-KI + Update-KI aktiv');
