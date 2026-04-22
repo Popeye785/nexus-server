@@ -3815,6 +3815,51 @@ const StaleOrderCleaner = {
   },
 };
 
+
+const TelegramAlarm = {
+  LEVELS:{INFO:0,WARN:1,CRITICAL:2,EMERGENCY:3},
+  EMOJIS:{INFO:'ℹ️',WARN:'⚠️',CRITICAL:'🚨',EMERGENCY:'🔴'},
+  recentAlarms:{}, DEDUP_MS:900000,
+  auditTrail:[],
+  pendingAcks:{}, ESCALATION_MS:600000,
+  async alert(level,module,message,data={}){
+    const key=level+':'+module+':'+message.slice(0,50);const now=Date.now();
+    if(this.recentAlarms[key]&&now-this.recentAlarms[key]<this.DEDUP_MS)return{sent:false,reason:'DUPLICATE'};
+    this.recentAlarms[key]=now;
+    const entry={ts:now,time:new Date().toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit',second:'2-digit'}),level,module,message,data:JSON.stringify(data).slice(0,200)};
+    this.auditTrail.unshift(entry);if(this.auditTrail.length>200)this.auditTrail.pop();
+    try{DB.insertLog.run(now,'TG_'+level,module,message,JSON.stringify(data).slice(0,500));}catch(_){}
+    const prefix=level==='EMERGENCY'?'🔴🔴 NOTFALL 🔴🔴':level==='CRITICAL'?'🚨 KRITISCH':level==='WARN'?'⚠️ WARNUNG':'ℹ️ INFO';
+    let msg=prefix+'\n'+entry.time+' | '+module+'\n━━━━━━━━━━━━━━━━━━━━\n'+message;
+    if(data.action)msg+='\nAktion: '+data.action;
+    if(level==='CRITICAL'||level==='EMERGENCY'){
+      const ackId='ACK-'+now;this.pendingAcks[ackId]={...entry,ackId,escalated:false};
+      msg+='\n\n/ack '+ackId+' zum Bestätigen';
+      setTimeout(()=>this.checkEscalation(ackId),this.ESCALATION_MS);
+    }
+    try{await TelegramBot.send(msg);return{sent:true};}catch(e){return{sent:false};}
+  },
+  info(m,msg,d){return this.alert('INFO',m,msg,d);},
+  warn(m,msg,d){return this.alert('WARN',m,msg,d);},
+  critical(m,msg,d){return this.alert('CRITICAL',m,msg,d);},
+  emergency(m,msg,d){return this.alert('EMERGENCY',m,msg,d);},
+  checkEscalation(ackId){
+    const a=this.pendingAcks[ackId];if(!a||a.acknowledged)return;
+    if(!a.escalated){a.escalated=true;
+      TelegramBot.send('🔴🔴 ESKALATION\nAlarm nicht bestätigt!\n'+a.module+': '+a.message+'\n\n⚠️ Safe Mode aktiviert\n/ack '+ackId);
+      try{if(DemoEngine.running){DemoEngine.running=false;Log.warn('SAFE_MODE','DemoEngine gestoppt');}}catch(_){}
+    }
+  },
+  acknowledge(ackId){
+    const a=this.pendingAcks[ackId];if(!a)return{error:'Unbekannt'};
+    a.acknowledged=true;a.ackedAt=Date.now();
+    if(a.escalated&&!DemoEngine.running){DemoEngine.start(DemoEngine.wallet?.total||1000);TelegramBot.send('✅ Bestätigt — DemoEngine gestartet');}
+    else TelegramBot.send('✅ Alarm bestätigt: '+a.module);
+    return{ok:true,ackId};
+  },
+  snapshot(){return{auditTrail:this.auditTrail.slice(0,30),pendingAcks:Object.values(this.pendingAcks).filter(a=>!a.acknowledged).length,totalAlarms:this.auditTrail.length,levels:{info:this.auditTrail.filter(a=>a.level==='INFO').length,warn:this.auditTrail.filter(a=>a.level==='WARN').length,critical:this.auditTrail.filter(a=>a.level==='CRITICAL').length,emergency:this.auditTrail.filter(a=>a.level==='EMERGENCY').length}};}
+};
+
 const AutonomousRepair = {
   enabled:true, timer:null, scanInterval:300000, history:[], pendingFix:null, errorBaseline:0,
   KNOWN_FIXES: {
@@ -3839,12 +3884,15 @@ const AutonomousRepair = {
     }catch(_){}
     try{const mb=process.memoryUsage().heapUsed/1024/1024;if(mb>800)issues.push({type:'MEMORY',severity:'HIGH',message:'Heap: '+mb.toFixed(0)+'MB'});}catch(_){}
     try{if(DemoEngine.running&&DemoEngine.stats.scans>20&&DemoEngine.stats.trades===0){const m=(now-(DemoEngine.stats.startedAt||now))/60000;if(m>120)issues.push({type:'NO_TRADES',severity:'MEDIUM',message:DemoEngine.stats.scans+' Scans, 0 Trades'});}}catch(_){}
-    try{DB.db.prepare('SELECT 1').get();}catch(e){issues.push({type:'DB_ERROR',severity:'CRITICAL',message:'DB nicht lesbar'});}
+    try{DB.db.prepare('SELECT 1').get();}catch(e){issues.push({type:'DB_ERROR',severity:'CRITICAL',message:'DB nicht lesbar'});
+      TelegramAlarm.emergency('DB', 'Datenbank nicht lesbar — sofort pruefen');}
     try{if(DemoEngine.wallet&&DemoEngine.wallet.total<0)issues.push({type:'WALLET_NEG',severity:'HIGH',message:'Wallet negativ'});
+        TelegramAlarm.critical('WALLET', 'Demo Wallet negativ: ' + DemoEngine.wallet.total.toFixed(2));
       if(DemoEngine.wallet&&Math.abs(DemoEngine.wallet.total-DemoEngine.wallet.reserve-DemoEngine.wallet.trading)>0.01)issues.push({type:'WALLET_DRIFT',severity:'HIGH',message:'Wallet Drift'});}catch(_){}
     try{const re=DB.db.prepare("SELECT COUNT(*) as n FROM system_log WHERE level='ERROR' AND ts > ?").get(now-300000)?.n||0;
       const oe=DB.db.prepare("SELECT COUNT(*) as n FROM system_log WHERE level='ERROR' AND ts > ? AND ts < ?").get(now-600000,now-300000)?.n||0;
-      if(re>oe*2&&re>5)issues.push({type:'ERROR_SPIKE',severity:'HIGH',message:'Errors x2: '+re});}catch(_){}
+      if(re>oe*2&&re>5)issues.push({type:'ERROR_SPIKE',severity:'HIGH',message:'Errors x2: '+re});
+      TelegramAlarm.warn('MONITOR', 'Error-Rate verdoppelt: ' + re + ' in 5min');}catch(_){}
     return issues;
   },
   diagnose(issue) {
@@ -3915,7 +3963,7 @@ const SecurityKI = {
     this.alerts.unshift({ts:Date.now(),type,message,severity,time:new Date().toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'})});
     if (this.alerts.length>100) this.alerts.pop();
     Log.warn('SECURITY_KI',type+': '+message);
-    if (severity==='HIGH'||severity==='CRITICAL') TelegramBot.send('\u{1F6E1} SECURITY: '+type+'\n'+message);
+    if (severity==='HIGH'||severity==='CRITICAL') TelegramAlarm.critical('SECURITY', type+': '+message); if(false) TelegramBot.send('\u{1F6E1} SECURITY: '+type+'\n'+message);
   },
   async fullScan() {
     const files=await this.checkFiles(), procs=await this.checkProcesses(), conns=await this.checkConnections();
@@ -4328,11 +4376,13 @@ const ExecFlow = {
       } else {
         DB.db.prepare(`UPDATE trades SET state='REJECTED' WHERE id=?`).run(tradeId);
         Incidents.create('ORDER_REJECT', order?.msg||'Unknown', 'MEDIUM');
+        TelegramAlarm.warn('EXEC', 'Order Rejected: ' + (order?.msg||'?'));
         return { ok:false, mode:'LIVE', reason:order?.msg, corrId };
       }
     } catch(e) {
       DB.db.prepare(`UPDATE trades SET state='ERROR' WHERE id=?`).run(tradeId);
       Incidents.create('ORDER_ERROR', e.message, 'HIGH');
+      TelegramAlarm.critical('EXEC', 'Order Error: Trade konnte nicht ausgefuehrt werden');
       Log.error('EXEC', `Order error: ${e.message}`, { corrId });
       return { ok:false, reason:e.message, corrId };
     }
@@ -6720,6 +6770,10 @@ app.post('/api/profitoptimizer/recalc', (req,res) => res.json(ProfitOptimizer.ca
 app.get('/api/stale/snapshot',(req,res)=>res.json(StaleOrderCleaner.snapshot()));
 app.post('/api/stale/run',(req,res)=>res.json(StaleOrderCleaner.run()));
 
+app.get('/api/telegram/alarms', (req,res) => res.json(TelegramAlarm.snapshot()));
+app.post('/api/telegram/ack', (req,res) => res.json(TelegramAlarm.acknowledge(req.body.ackId)));
+app.post('/api/telegram/test', async (req,res) => { const l=req.body.level||'INFO'; await TelegramAlarm.alert(l,'TEST','Test-Alarm Level '+l); res.json({ok:true,level:l}); });
+
 app.get('/api/ars/snapshot',(req,res)=>res.json(AutonomousRepair.snapshot()));
 app.get('/api/ars/history',(req,res)=>res.json({history:AutonomousRepair.history.slice(0,50)}));
 app.post('/api/ars/approve',(req,res)=>res.json(AutonomousRepair.handleApproval(true)));
@@ -7850,6 +7904,11 @@ ${msg}`,
         const sym2 = args[0]||'BTCUSDT';
         const exp  = await Explainer.explain(sym2);
         await this.send('🔍 ERKLÄRUNG: '+sym2+'\n\n'+exp.summary);
+        break;
+      case '/ack':
+        const ackParts = (text||'').split(' ');
+        if (ackParts[1]) { const r = TelegramAlarm.acknowledge(ackParts[1]); await this.send(r.ok ? '✅ Bestätigt' : '❌ ' + (r.error||'Fehler')); }
+        else { await this.send('Nutze: /ack ACK-ID'); }
         break;
       case '/approve':AutonomousRepair.handleApproval(true);TelegramBot.send('Fix genehmigt');break;
       case '/reject':AutonomousRepair.handleApproval(false);TelegramBot.send('Fix abgelehnt');break;
