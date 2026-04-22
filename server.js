@@ -3723,6 +3723,82 @@ const ProfitOptimizer = {
 };
 
 
+
+// ═════════════════════════════════════════════════════════════════════════════
+// STALE ORDER CLEANER — Raeumt haengende Trades/Orders auf
+// ═════════════════════════════════════════════════════════════════════════════
+const StaleOrderCleaner = {
+  timer: null,
+  interval: 1800000, // 30min
+  maxAgeHours: null, // wird aus CFG geladen
+  cleaned: [],
+
+  run() {
+    const maxAge = (CFG.MAX_HOLD_HOURS || 48) * 3600000;
+    const now = Date.now();
+    let count = 0;
+
+    try {
+      const active = Trades.getActive();
+      for (const trade of active) {
+        const age = now - (trade.created_at || 0);
+        const ageH = (age / 3600000).toFixed(1);
+
+        // 1. Zu alt (ueber MAX_HOLD_HOURS)
+        if (age > maxAge) {
+          try {
+            DB.updateTrade.run('CLOSED', 0, 0, 'STALE_CLEANUP_TIME', now, now, trade.id);
+            this.cleaned.unshift({ ts: now, id: trade.id, symbol: trade.symbol, reason: 'STALE_TIME', age: ageH + 'h' });
+            count++;
+            Log.warn('STALE', 'Trade ' + trade.symbol + ' geschlossen — ' + ageH + 'h alt (max ' + CFG.MAX_HOLD_HOURS + 'h)');
+          } catch (_) {}
+          continue;
+        }
+
+        // 2. Orphan: DEMO_UNIFIED Trade aber nicht in DemoEngine.positions
+        if (trade.strategy === 'DEMO_UNIFIED') {
+          const inMemory = Object.values(DemoEngine.positions || {}).some(p => p.dbTradeId === trade.id);
+          if (!inMemory && age > 600000) { // 10min Toleranz nach Restart
+            try {
+              DB.updateTrade.run('CLOSED', 0, 0, 'STALE_ORPHAN', now, now, trade.id);
+              this.cleaned.unshift({ ts: now, id: trade.id, symbol: trade.symbol, reason: 'ORPHAN', age: ageH + 'h' });
+              count++;
+              Log.warn('STALE', 'Orphan Trade ' + trade.symbol + ' geschlossen — nicht in DemoEngine');
+            } catch (_) {}
+          }
+        }
+      }
+
+      if (count > 0) {
+        TelegramBot.send('🧹 Stale Cleaner: ' + count + ' haengende Trades bereinigt');
+      }
+
+      if (this.cleaned.length > 50) this.cleaned = this.cleaned.slice(0, 50);
+    } catch (e) {
+      Log.warn('STALE', 'Cleaner Fehler: ' + e.message);
+    }
+
+    return { cleaned: count, total: this.cleaned.length };
+  },
+
+  start() {
+    if (this.timer) return;
+    // Erster Run nach 60s (gibt DemoEngine Zeit zu starten)
+    setTimeout(() => this.run(), 60000);
+    this.timer = setInterval(() => this.run(), this.interval);
+    Log.boot('StaleOrderCleaner gestartet (alle 30min)');
+  },
+
+  snapshot() {
+    return {
+      interval: this.interval,
+      maxAge: (CFG.MAX_HOLD_HOURS || 48) + 'h',
+      recentCleaned: this.cleaned.slice(0, 20),
+      totalCleaned: this.cleaned.length,
+    };
+  },
+};
+
 const AutonomousRepair = {
   enabled:true, timer:null, scanInterval:300000, history:[], pendingFix:null, errorBaseline:0,
   KNOWN_FIXES: {
@@ -6608,6 +6684,9 @@ app.post('/api/riskengine/bayesian', async (req,res) => {
 
 app.get('/api/profitoptimizer', (req,res) => res.json(ProfitOptimizer.snapshot()));
 app.post('/api/profitoptimizer/recalc', (req,res) => res.json(ProfitOptimizer.calculate()));
+
+app.get('/api/stale/snapshot',(req,res)=>res.json(StaleOrderCleaner.snapshot()));
+app.post('/api/stale/run',(req,res)=>res.json(StaleOrderCleaner.run()));
 
 app.get('/api/ars/snapshot',(req,res)=>res.json(AutonomousRepair.snapshot()));
 app.get('/api/ars/history',(req,res)=>res.json({history:AutonomousRepair.history.slice(0,50)}));
@@ -11635,6 +11714,7 @@ async function boot() {
   Log.boot('Meta-Wächter geplant (startet in 90s)');
 
   ProfitOptimizer.start();
+  StaleOrderCleaner.start();
   AutonomousRepair.start();
   SecurityKI.start();
   UpdateKI.checkVersion().catch(()=>{});
