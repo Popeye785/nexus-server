@@ -10771,7 +10771,15 @@ const DemoEngine = {
 
     const sigStr = signals.map(s=>s.strategy).join('+');
     Log.info('DEMO', `TRADE: ${direction} ${symbol} ${size.toFixed(2)}USDT @ ${fillPrice.toFixed(4)} [${sigStr}]`);
-    // ENTRY-Event wird bereits vom ExecutionAdapter gepusht (Phase 2.3) - doppelter Push entfernt
+    // ENTRY-Event wird bereits vom ExecutionAdapter gepusht (Phase 2.3)
+    // PHASE 2.5: ExitEngine-Level registrieren, damit _checkExits via ExitEngine arbeitet
+    try {
+      const sideLC = direction.toLowerCase();
+      ExitEngine.setLevel(tradeId, fillPrice, atr, sideLC, candles);
+      // SL/TP aus ExitEngine in Position uebernehmen (konsistent mit Live-Pfad)
+      const lvl = ExitEngine.tpslLevels[tradeId];
+      if (lvl) { pos.stopLoss = lvl.stopLoss; pos.takeProfit = lvl.takeProfit; pos.exitEngineManaged = true; }
+    } catch(e) { try{Log.warn('DEMO','ExitEngine.setLevel err: '+e.message);}catch(_){} }
     this.signals.unshift({ ts:Date.now(), symbol, direction, price:fillPrice, strength, signals:sigStr });
     if (this.signals.length > 50) this.signals.pop();
   },
@@ -10788,29 +10796,36 @@ const DemoEngine = {
         const pnlPct = dir * (price - pos.fillPrice) / pos.fillPrice;
         let   exitReason = null;
 
-        // SL / TP Check
-        if (pos.direction === 'BUY') {
-          if (price <= pos.stopLoss)   exitReason = 'STOP_LOSS';
-          if (price >= pos.takeProfit) exitReason = 'TAKE_PROFIT';
-        } else {
-          if (price >= pos.stopLoss)   exitReason = 'STOP_LOSS';
-          if (price <= pos.takeProfit) exitReason = 'TAKE_PROFIT';
+        // PHASE 2.5: Exit-Entscheidung via ExitEngine (gleicher Pfad wie LIVE)
+        try {
+          const sideLC = pos.direction === 'BUY' ? 'buy' : 'sell';
+          // Fake trade-Objekt fuer ExitEngine (erwartet DB-trade-Struktur)
+          const fakeTrade = {
+            id: pos.tradeId,
+            state: 'POSITION_ACTIVE',
+            entry_price: pos.fillPrice,
+            side: sideLC,
+            created_at: pos.openedAt,
+          };
+          // Kerzen holen fuer RSI/ATR (DecisionFlow-Fallback wenn nicht im Cache)
+          const candles = (Bitget.candleCache && Bitget.candleCache[pos.symbol+'_1h']) || [];
+          if (candles.length >= 20) {
+            const verdict = ExitEngine.evaluate(fakeTrade, candles, price);
+            if (verdict && verdict.shouldExit) exitReason = verdict.reason;
+          }
+        } catch(e) { try{Log.warn('DEMO','ExitEngine.evaluate err: '+e.message);}catch(_){} }
+
+        // Fallback: eigene Minimal-Logik (nur wenn ExitEngine keine Kerzen hatte)
+        if (!exitReason) {
+          if (pos.direction === 'BUY') {
+            if (price <= pos.stopLoss)   exitReason = 'STOP_LOSS';
+            else if (price >= pos.takeProfit) exitReason = 'TAKE_PROFIT';
+          } else {
+            if (price >= pos.stopLoss)   exitReason = 'STOP_LOSS';
+            else if (price <= pos.takeProfit) exitReason = 'TAKE_PROFIT';
+          }
+          if (!exitReason && Date.now() - pos.openedAt > CFG.MAX_HOLD_HOURS * 3600000) exitReason = 'TIME_EXIT';
         }
-
-        // Trailing Stop: Sichert Gewinne
-        if (pnlPct > 0.005) {
-          if (!pos.trailHigh) pos.trailHigh = price;
-          if (pos.direction === 'BUY' && price > pos.trailHigh) pos.trailHigh = price;
-          const trailDist = ProfitOptimizer.getTrailing();
-          const trailStop = pos.trailHigh * (1 - trailDist);
-          if (price < trailStop) exitReason = 'TRAILING_STOP';
-        }
-
-        // Zeit-Exit
-        if (Date.now() - pos.openedAt > CFG.MAX_HOLD_HOURS * 3600000) exitReason = 'TIME_EXIT';
-
-        // Regime Exit
-        if (Regime.regime === 'EXTREME_BEAR') exitReason = 'REGIME_EXIT';
 
         if (!exitReason) continue;
 
@@ -10863,6 +10878,7 @@ const DemoEngine = {
           try { Trades.close(pos.dbTradeId, exitPrice, exitReason); } catch(_) {}
         }
         delete this.positions[id];
+        try { ExitEngine.cleanup(pos.tradeId); } catch(_){}
 
         this._persistWallet();
 
