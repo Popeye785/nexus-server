@@ -917,6 +917,19 @@ fetch('http://100.67.6.22:3000/api/status').then(r=>r.json()).then(d=>{
     </div>
   </div>
   <div class="card">
+    <div class="ct">🎯 TRADING-BUDGET (optional)</div>
+    <div class="ibanner">Begrenzt wieviel vom Gesamt-Kapital der Bot nutzt. Rest bleibt unangetastet. Leer = kein Limit.</div>
+    <div class="fg">
+      <label class="fl">BUDGET (USDT)</label>
+      <input class="fi" type="number" id="budgetInput" placeholder="z.B. 500" step="any">
+    </div>
+    <div class="g2" style="gap:6px;margin-top:8px">
+      <button class="btn btn-blue" onclick="setBudget()">SETZEN</button>
+      <button class="btn btn-warn" onclick="clearBudget()">ENTFERNEN</button>
+    </div>
+    <div id="budgetStatus" style="font-size:10px;color:var(--dim);margin-top:10px;line-height:1.6">Laden...</div>
+  </div>
+  <div class="card">
     <div class="ct">⚡ LIVE BALANCE (Bitget)</div>
     <div id="v9-balance" style="font-family:monospace;font-size:10px;color:var(--dim)">Lade...</div>
     <div style="font-size:8px;color:var(--dim);margin-top:4px">🔄 Aktualisiert sich automatisch alle 10s</div>
@@ -937,6 +950,16 @@ fetch('http://100.67.6.22:3000/api/status').then(r=>r.json()).then(d=>{
     <div class="ct">FAIL-SAFE · V9 KILL SWITCH</div>
     <div class="fs-box normal" id="fsBox"><div style="font-size:22px" id="fsIco">✅</div><div><div class="fs-lbl" id="fsLbl" style="color:var(--accent2)">NORMAL</div><div style="font-size:10px;color:var(--dim);margin-top:2px" id="fsSub">Alle Module aktiv</div></div></div>
     <div class="g3" style="gap:6px"><button class="btn btn-warn btn-sm" onclick="setSafeMode()">⚡ SAFE</button><button class="btn btn-danger btn-sm" onclick="setEmergency()">🛑 NOT-AUS</button><button class="btn btn-blue btn-sm" onclick="runSelfHeal()">↻ HEAL</button></div>
+  </div>
+  <div class="card">
+    <div class="ct">🛡 RISK TIER (Stufenweiser LIVE-Einstieg)</div>
+    <div class="ibanner">Drei Sicherheitsstufen: SAFE → STANDARD → AGGRESSIVE. In DEMO inaktiv (ausser DryRun). In LIVE automatisch.</div>
+    <div id="risktier-status" style="font-family:monospace;font-size:10px;line-height:2">Laden...</div>
+    <div class="g3" style="gap:6px;margin-top:8px">
+      <button class="btn btn-blue btn-sm" onclick="toggleDryRun()" id="btnDryRun">▶ DryRun EIN</button>
+      <button class="btn btn-blue btn-sm" onclick="setRiskTier()">🔄 TIER WECHSELN</button>
+      <button class="btn btn-blue btn-sm" onclick="promoteCheck()">📊 PROMOTION?</button>
+    </div>
   </div>
   <div class="card">
     <div class="ct">PROXY · MAC MINI</div>
@@ -3166,6 +3189,90 @@ function setCapitalSimple(){
   setCapital();
   try { log('OK','Startkapital gesetzt: '+cap+' USDT'); } catch(_){}
 }
+
+// === Budget & RiskTier Funktionen ===
+async function loadBudgetStatus() {
+  try {
+    const d = await apiV9('/api/budget/snapshot');
+    const el = document.getElementById('budgetStatus');
+    if (!el) return;
+    if (d.budget == null) {
+      el.innerHTML = '📌 <b>Kein Limit</b> - voller Kapital wird genutzt<br>Mode: '+d.mode+' · Effektiv: '+d.effectiveCapital.toFixed(2)+' USDT';
+    } else {
+      el.innerHTML = '📌 <b>Budget aktiv:</b> '+d.budget.toFixed(2)+' USDT<br>Mode: '+d.mode+' · Raw: '+d.rawCapital.toFixed(2)+' · Effektiv: '+d.effectiveCapital.toFixed(2);
+    }
+  } catch(e) { const el=document.getElementById('budgetStatus'); if(el) el.textContent='Fehler: '+e.message; }
+}
+async function setBudget() {
+  const v = parseFloat(document.getElementById('budgetInput').value);
+  if (!v || v <= 0) { alert('Bitte gueltigen Budget-Wert eintragen (>0)'); return; }
+  try {
+    const r = await apiV9('/api/budget/set','POST',{budget:v});
+    if (r.error) { alert('Fehler: '+r.error); return; }
+    log('OK','Budget gesetzt: '+v+' USDT');
+    loadBudgetStatus();
+  } catch(e) { log('ERR','Budget: '+e.message); }
+}
+async function clearBudget() {
+  if (!confirm('Budget entfernen (volles Kapital wird wieder genutzt)?')) return;
+  try {
+    const r = await apiV9('/api/budget/set','POST',{budget:null});
+    log('OK','Budget entfernt');
+    loadBudgetStatus();
+  } catch(e) { log('ERR','Budget: '+e.message); }
+}
+
+async function loadRiskTierStatus() {
+  try {
+    const d = await apiV9('/api/risktier/snapshot');
+    const el = document.getElementById('risktier-status');
+    if (!el) return;
+    const t = d.config;
+    const active = d.shouldApply ? '<b style="color:var(--accent2)">AKTIV</b>' : '<b style="color:var(--dim)">inaktiv (DEMO)</b>';
+    const dryOn = d.dryRun && d.dryRun.active;
+    el.innerHTML =
+      '<div>Tier: <b style="color:var(--accent)">'+d.current+'</b> ('+d.label+')</div>' +
+      '<div>Status: '+active+' · Mode: '+d.mode+(dryOn?' · <b style="color:var(--warn)">DryRun EIN</b>':'')+'</div>' +
+      '<div style="color:var(--dim);font-size:9px">Max Size: '+t.maxSize+' USDT · Max Pos: '+t.maxConcurrentPos+' · Max Daily-DD: '+(t.maxDailyDDPct*100).toFixed(0)+'%</div>';
+    const btn = document.getElementById('btnDryRun');
+    if (btn) { btn.textContent = dryOn ? '⏸ DryRun AUS' : '▶ DryRun EIN'; btn.classList.toggle('active', !!dryOn); }
+  } catch(e) { const el=document.getElementById('risktier-status'); if(el) el.textContent='Fehler: '+e.message; }
+}
+async function toggleDryRun() {
+  try {
+    const cur = await apiV9('/api/risktier/snapshot');
+    const isOn = cur.dryRun && cur.dryRun.active;
+    if (isOn) {
+      await apiV9('/api/risktier/dryrun/disable','POST');
+      log('OK','DryRun aus');
+    } else {
+      await apiV9('/api/risktier/dryrun/enable','POST',{});
+      log('OK','DryRun an (Tier-Regeln wirken auch in DEMO)');
+    }
+    loadRiskTierStatus();
+  } catch(e) { log('ERR','DryRun: '+e.message); }
+}
+async function setRiskTier() {
+  const t = prompt('Tier wechseln auf: TIER_SAFE / TIER_STANDARD / TIER_AGGRESSIVE', 'TIER_SAFE');
+  if (!t) return;
+  try {
+    const r = await apiV9('/api/risktier/set','POST',{tier:t});
+    if (r.error) { alert('Fehler: '+r.error); return; }
+    log('OK','Tier: '+t);
+    loadRiskTierStatus();
+  } catch(e) { log('ERR','Tier: '+e.message); }
+}
+async function promoteCheck() {
+  try {
+    const r = await apiV9('/api/risktier/promote-check','POST');
+    if (r.promoted) alert('PROMOTION! Neuer Tier: '+r.to);
+    else alert('Keine Promotion\nTrades: '+(r.trades||0)+'/'+(r.required||'?')+'\nWR: '+((r.wr||0)*100).toFixed(1)+'%/'+((r.requiredWR||0)*100).toFixed(0)+'%');
+    loadRiskTierStatus();
+  } catch(e) { log('ERR','Promote: '+e.message); }
+}
+
+setTimeout(() => { loadBudgetStatus(); loadRiskTierStatus(); }, 2500);
+setInterval(() => { loadBudgetStatus(); loadRiskTierStatus(); }, 15000);
 
 function setCapital(){
   const t=parseFloat(document.getElementById('manCap').value);if(!t)return;
