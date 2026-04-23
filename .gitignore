@@ -1,7 +1,28 @@
+# Sensible Daten
 .env
+.env.local
+
+# Node
 node_modules/
+
+# SQLite
 nexus.db
 nexus.db-shm
 nexus.db-wal
+
+# Backups (lokal behalten, nicht ins Repo)
+*.bak
+*.bak.*
+*.BACKUP*
+*.PERFEKT*
 backups/
+
+# Fix-Scripts (temporär auf Desktop, nicht ins Repo)
+fix_*.js
+
+# OS
 .DS_Store
+
+# Sonstiges
+oe
+*.log
