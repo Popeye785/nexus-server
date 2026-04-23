@@ -10771,7 +10771,7 @@ const DemoEngine = {
 
     const sigStr = signals.map(s=>s.strategy).join('+');
     Log.info('DEMO', `TRADE: ${direction} ${symbol} ${size.toFixed(2)}USDT @ ${fillPrice.toFixed(4)} [${sigStr}]`);
-    try { ActionStream.push('ENTRY', symbol, direction+' '+size.toFixed(2)+' USDT @ '+fillPrice.toFixed(4), {direction, size, fillPrice, strategy:'DEMO_UNIFIED'}); } catch(_){}
+    // ENTRY-Event wird bereits vom ExecutionAdapter gepusht (Phase 2.3) - doppelter Push entfernt
     this.signals.unshift({ ts:Date.now(), symbol, direction, price:fillPrice, strength, signals:sigStr });
     if (this.signals.length > 50) this.signals.pop();
   },
