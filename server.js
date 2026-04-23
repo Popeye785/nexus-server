@@ -3603,10 +3603,10 @@ const ProfitOptimizer = {
   },
 
   FEES: {
-    maker: 0.001,
-    taker: 0.001,
+    maker: 0.0002,
+    taker: 0.0006,
     slippage: 0.0005,
-    total: 0.0025, // 0.25% round-trip
+    total: 0.0008, // 0.08% round-trip (CFG.MAKER+TAKER)
   },
 
   // Hauptfunktion: Berechne optimale Werte aus Trade-Historie
@@ -7191,7 +7191,7 @@ const DCABot = {
 
       // Faktor 4: Gebühren-Check → nie so aktiv dass Gebühren Gewinne fressen
       // Bitget Taker Fee: 0.06% | Min Profit per Trade > 2× Fee
-      const feePerTrade   = job.amountUSDT * 0.0006;     // 0.06% Taker
+      const feePerTrade   = job.amountUSDT * CFG.TAKER_FEE; // Taker-Fee aus CFG
       const minProfitPerTrade = feePerTrade * 2;          // Mindest-Gewinn
       const breakevenMoves = minProfitPerTrade / (job.amountUSDT || 1);
       // Wenn ATR zu niedrig für sinnvolle Trades → langsamer
@@ -10407,7 +10407,7 @@ const DemoEngine = {
         const exitSlip  = 0.0001 + Math.random() * 0.0003;
         const exitPrice = pos.direction==='BUY' ? price*(1-exitSlip) : price*(1+exitSlip);
         const rawPnl    = dir * (exitPrice - pos.fillPrice) * (pos.size / pos.fillPrice);
-        const fees      = pos.size * 0.0025;
+        const fees      = pos.size * (CFG.MAKER_FEE + CFG.TAKER_FEE);
         const pnl       = rawPnl - fees;
 
         // Wallet updaten: 70/30 Split bei Gewinn
