@@ -4652,64 +4652,45 @@ const ExecFlow = {
     // Create trade record
     const tradeId = Trades.create(symbol, direction.toLowerCase(), size, strategy||'MANUAL');
 
-    // DEMO / PAPER mode – kein echter API Call
-    if (!DemoEngine.liveMode || !CFG.API_KEY || CFG.DEPLOY_MODE==='PAPER') {
-      const candles  = await Bitget.fetchCandles(symbol,'1h',20).catch(()=>[]);
-      const atr      = Ind.atr(candles) || price*0.01;
-      // Realistisches Slippage simulieren (echte Marktpreise)
-      const slip     = 0.0002 + Math.random()*0.0003;
-      const fillPrice = direction==='BUY' ? price*(1+slip) : price*(1-slip);
-      Trades.recordFill(tradeId, fillPrice, atr);
-      // Demo-Wallet aktualisieren
-      const cost = size; // size ist bereits in USDT
-      if (direction==='BUY') DemoEngine.wallet.trading = Math.max(0, DemoEngine.wallet.trading - cost);
-      else DemoEngine.wallet.trading = Math.min(DemoEngine.wallet.startTotal, DemoEngine.wallet.trading + cost);
-      DemoEngine.wallet.total = DemoEngine.wallet.reserve + DemoEngine.wallet.trading;
-      try { DemoEngine._persistWallet(); } catch(_) {}
-      Log.info('EXEC', `DEMO ${symbol} ${direction} ${size.toFixed(2)} @ ${fillPrice.toFixed(4)} (slip:${(slip*100).toFixed(3)}%)`, { corrId });
-      try { ActionStream.push('ENTRY', symbol, 'DEMO '+direction+' '+size.toFixed(2)+' @ '+fillPrice.toFixed(4), {mode:'DEMO',direction,size,fillPrice,slip}); } catch(_){}
-      return { ok:true, mode:'DEMO', tradeId, symbol, side:direction, size, price:fillPrice, slippage:(slip*100).toFixed(3)+'%', corrId };
-    }
-
-    // Live execution
+    // === PHASE 2.6: ExecutionAdapter vereinheitlicht DEMO und LIVE ===
     try {
-      const order = await Bitget.placeSportOrder(symbol, direction.toLowerCase(), size);
-      if (order?.code==='00000') {
-        const orderId = order.data?.orderId;
-        DB.db.prepare(`UPDATE trades SET order_id=? WHERE id=?`).run(orderId, tradeId);
-        let fillPrice = price; let fillSize = size;
-        try {
-          await new Promise(r => setTimeout(r, 2000));
-          const orderDetail = await Bitget.get('/api/v2/spot/trade/orderInfo?orderId=' + orderId);
-          if (orderDetail?.data) {
-            const od = Array.isArray(orderDetail.data) ? orderDetail.data[0] : orderDetail.data;
-            if (od.priceAvg && parseFloat(od.priceAvg) > 0) fillPrice = parseFloat(od.priceAvg);
-            if (od.baseVolume && parseFloat(od.baseVolume) > 0) fillSize = parseFloat(od.baseVolume) * fillPrice;
-            const status = od.state || od.status || '';
-            if (status.includes('partial')) {
-              Log.warn('EXEC', 'PARTIAL FILL: ' + symbol + ' ' + fillSize.toFixed(2) + '/' + size.toFixed(2));
-              DB.db.prepare(`UPDATE trades SET size=? WHERE id=?`).run(fillSize, tradeId);
-              Incidents.create('PARTIAL_FILL', symbol + ' partial', 'LOW');
-            }
-          }
-        } catch(_pf) { Log.warn('EXEC', 'Fill-Check fehlgeschlagen'); }
-        const candles = await Bitget.fetchCandles(symbol,'1h',20).catch(()=>[]);
-        const atr = Ind.atr(candles) || fillPrice*0.01;
-        Trades.recordFill(tradeId, fillPrice, atr);
-        Log.info('EXEC', `LIVE ORDER ${orderId} ${symbol} ${direction} ${size}`, { corrId });
-        try { ActionStream.push('ENTRY', symbol, 'LIVE '+direction+' '+size+' order='+orderId, {mode:'LIVE',direction,size,orderId}); } catch(_){}
-        return { ok:true, mode:'LIVE', tradeId, orderId, symbol, side:direction, size, price, corrId };
-      } else {
+      const fillResult = await ExecutionAdapter.placeOrder(symbol, direction, size, price, { source:'ExecFlow', corrId });
+      if (!fillResult || !fillResult.ok) {
         DB.db.prepare(`UPDATE trades SET state='REJECTED' WHERE id=?`).run(tradeId);
-        Incidents.create('ORDER_REJECT', order?.msg||'Unknown', 'MEDIUM');
-        TelegramAlarm.warn('EXEC', 'Order Rejected: ' + (order?.msg||'?'));
-        return { ok:false, mode:'LIVE', reason:order?.msg, corrId };
+        Incidents.create('ORDER_REJECT', (fillResult && fillResult.error) || 'adapter fail', 'MEDIUM');
+        TelegramAlarm.warn('EXEC', 'Order Rejected: ' + (fillResult && fillResult.error || '?'));
+        return { ok:false, mode: fillResult && fillResult.mode || '?', reason: fillResult && fillResult.error, corrId };
       }
+      const fillPrice = fillResult.fillPrice;
+      const fillSize  = fillResult.sizeUSDT;
+      const candles = await Bitget.fetchCandles(symbol,'1h',20).catch(()=>[]);
+      const atr = Ind.atr(candles) || fillPrice*0.01;
+      Trades.recordFill(tradeId, fillPrice, atr);
+
+      if (fillResult.mode === 'DEMO') {
+        // Demo-Wallet aktualisieren (bis Phase 2.4 WalletProvider)
+        const cost = fillSize;
+        if (direction==='BUY') DemoEngine.wallet.trading = Math.max(0, DemoEngine.wallet.trading - cost);
+        else DemoEngine.wallet.trading = Math.min(DemoEngine.wallet.startTotal, DemoEngine.wallet.trading + cost);
+        DemoEngine.wallet.total = DemoEngine.wallet.reserve + DemoEngine.wallet.trading;
+        try { DemoEngine._persistWallet(); } catch(_) {}
+        Log.info('EXEC', 'DEMO '+symbol+' '+direction+' '+fillSize.toFixed(2)+' @ '+fillPrice.toFixed(4)+' (slip:'+(fillResult.slippagePct*100).toFixed(3)+'%)', { corrId });
+        return { ok:true, mode:'DEMO', tradeId, symbol, side:direction, size:fillSize, price:fillPrice, slippage:(fillResult.slippagePct*100).toFixed(3)+'%', corrId };
+      }
+      // LIVE-Pfad: orderId in DB + partial-fill-Incident
+      if (fillResult.orderId) DB.db.prepare(`UPDATE trades SET order_id=? WHERE id=?`).run(fillResult.orderId, tradeId);
+      if (fillResult.partialFill) {
+        Log.warn('EXEC', 'PARTIAL FILL: '+symbol+' '+fillSize.toFixed(2)+'/'+size.toFixed(2));
+        DB.db.prepare(`UPDATE trades SET size=? WHERE id=?`).run(fillSize, tradeId);
+        Incidents.create('PARTIAL_FILL', symbol + ' partial', 'LOW');
+      }
+      Log.info('EXEC', 'LIVE ORDER '+fillResult.orderId+' '+symbol+' '+direction+' '+fillSize, { corrId });
+      return { ok:true, mode:'LIVE', tradeId, orderId: fillResult.orderId, symbol, side:direction, size:fillSize, price:fillPrice, corrId };
     } catch(e) {
       DB.db.prepare(`UPDATE trades SET state='ERROR' WHERE id=?`).run(tradeId);
       Incidents.create('ORDER_ERROR', e.message, 'HIGH');
       TelegramAlarm.critical('EXEC', 'Order Error: Trade konnte nicht ausgefuehrt werden');
-      Log.error('EXEC', `Order error: ${e.message}`, { corrId });
+      Log.error('EXEC', 'Order error: '+e.message, { corrId });
       return { ok:false, reason:e.message, corrId };
     }
   }
