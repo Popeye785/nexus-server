@@ -1742,6 +1742,22 @@ return { signal: 'HOLD', strength: 0 };"></textarea>
     </div>
   </div>
 
+  <!-- SIGNAL PERFORMANCE ANALYSE -->
+  <div class="card">
+    <div class="ct" style="display:flex;justify-content:space-between;align-items:center">
+      <span>📊 SIGNAL-ANALYSE (letzte 500 Demo-Trades)</span>
+      <button class="btn btn-blue btn-sm" onclick="loadSignalAnalysis()">🔄</button>
+    </div>
+    <div class="ibanner">Zeigt wo die Trades tatsächlich gewinnen oder verlieren. Daten-getriebene Threshold-Entscheidung statt Gefühl.</div>
+    <div id="sig-analysis-summary" style="font-family:monospace;font-size:10px;color:var(--dim);margin-bottom:8px">Laden...</div>
+    <div style="font-size:10px;color:var(--dim);margin-bottom:4px">PNL-BUCKETS (nach Gewinn/Verlust-Groesse)</div>
+    <div id="sig-buckets" style="font-family:monospace;font-size:9px"></div>
+    <div style="font-size:10px;color:var(--dim);margin-top:10px;margin-bottom:4px">EXIT-REASONS</div>
+    <div id="sig-reasons" style="font-family:monospace;font-size:9px;max-height:160px;overflow-y:auto"></div>
+    <div style="font-size:10px;color:var(--dim);margin-top:10px;margin-bottom:4px">PRO SYMBOL</div>
+    <div id="sig-symbols" style="font-family:monospace;font-size:9px;max-height:160px;overflow-y:auto"></div>
+  </div>
+
   <!-- Wie es funktioniert -->
   <div class="card">
     <div class="ct">WIE ES FUNKTIONIERT</div>
@@ -5390,6 +5406,80 @@ function feedPause(btn) {
 setTimeout(feedLoad, 1500);
 if (_feedTimer) clearInterval(_feedTimer);
 _feedTimer = setInterval(feedLoad, 2000);
+
+// Signal-Analyse
+async function loadSignalAnalysis() {
+  try {
+    const d = await apiV9('/api/analysis/signals');
+    if (!d || d.error) { document.getElementById('sig-analysis-summary').textContent = 'Fehler: '+(d && d.error); return; }
+    const wr = (d.winRate*100).toFixed(1);
+    const wrCol = d.winRate >= 0.54 ? 'var(--accent2)' : d.winRate >= 0.45 ? 'var(--warn)' : 'var(--danger)';
+    document.getElementById('sig-analysis-summary').innerHTML =
+      'Trades: <b>'+d.totalTrades+'</b>  WR: <b style="color:'+wrCol+'">'+wr+'%</b>  ΣPnL: <b style="color:'+(d.totalPnl>=0?'var(--accent2)':'var(--danger)')+'">'+d.totalPnl.toFixed(2)+' USDT</b>  Avg: '+d.avgPnl.toFixed(3);
+
+    // Score-Buckets-Tabelle
+    const bEl = document.getElementById('sig-buckets');
+    if (!d.pnlBuckets || !d.pnlBuckets.length) { bEl.innerHTML = '<div style="color:var(--dim)">Keine Daten</div>'; }
+    else {
+      bEl.innerHTML = '<table style="width:100%;border-collapse:collapse">' +
+        '<tr style="color:var(--dim);font-size:8px"><td>RANGE</td><td style="text-align:right">TRADES</td><td style="text-align:right">WR</td><td style="text-align:right">ΣPNL</td><td style="text-align:right">AVG</td></tr>' +
+        d.pnlBuckets.map(b => {
+          const wr = (b.winRate*100).toFixed(0);
+          const wrCol = b.winRate >= 0.54 ? 'var(--accent2)' : b.winRate >= 0.45 ? 'var(--warn)' : b.trades>0 ? 'var(--danger)' : 'var(--dim)';
+          const pnlCol = b.totalPnl>0 ? 'var(--accent2)' : b.totalPnl<0 ? 'var(--danger)' : 'var(--dim)';
+          return '<tr style="border-top:1px solid rgba(255,255,255,0.05)">'
+            +'<td>'+b.range+'</td>'
+            +'<td style="text-align:right">'+b.trades+'</td>'
+            +'<td style="text-align:right;color:'+wrCol+'">'+(b.trades>0?wr+'%':'—')+'</td>'
+            +'<td style="text-align:right;color:'+pnlCol+'">'+b.totalPnl.toFixed(2)+'</td>'
+            +'<td style="text-align:right;color:'+pnlCol+'">'+b.avgPnl.toFixed(3)+'</td></tr>';
+        }).join('') + '</table>';
+    }
+
+    // Exit-Reasons-Tabelle
+    const rEl = document.getElementById('sig-reasons');
+    if (!d.exitReasons || !d.exitReasons.length) { rEl.innerHTML = '<div style="color:var(--dim)">Keine Daten</div>'; }
+    else {
+      rEl.innerHTML = '<table style="width:100%;border-collapse:collapse">' +
+        '<tr style="color:var(--dim);font-size:8px"><td>REASON</td><td style="text-align:right">N</td><td style="text-align:right">WR</td><td style="text-align:right">ΣPNL</td><td style="text-align:right">AVG</td></tr>' +
+        d.exitReasons.map(r => {
+          const wr = (r.winRate*100).toFixed(0);
+          const wrCol = r.winRate >= 0.54 ? 'var(--accent2)' : r.winRate >= 0.45 ? 'var(--warn)' : 'var(--danger)';
+          const pnlCol = r.totalPnl>0 ? 'var(--accent2)' : 'var(--danger)';
+          return '<tr style="border-top:1px solid rgba(255,255,255,0.05)">'
+            +'<td>'+r.reason+'</td>'
+            +'<td style="text-align:right">'+r.trades+'</td>'
+            +'<td style="text-align:right;color:'+wrCol+'">'+wr+'%</td>'
+            +'<td style="text-align:right;color:'+pnlCol+'">'+r.totalPnl.toFixed(2)+'</td>'
+            +'<td style="text-align:right;color:'+pnlCol+'">'+r.avgPnl.toFixed(3)+'</td></tr>';
+        }).join('') + '</table>';
+    }
+
+    // Symbol-Heatmap
+    const syEl = document.getElementById('sig-symbols');
+    if (syEl) {
+      if (!d.symbolStats || !d.symbolStats.length) { syEl.innerHTML = '<div style="color:var(--dim)">Keine Daten</div>'; }
+      else {
+        syEl.innerHTML = '<table style="width:100%;border-collapse:collapse">' +
+          '<tr style="color:var(--dim);font-size:8px"><td>SYMBOL</td><td style="text-align:right">N</td><td style="text-align:right">WR</td><td style="text-align:right">ΣPNL</td><td style="text-align:right">AVG</td></tr>' +
+          d.symbolStats.map(function(s) {
+            var wr = (s.winRate*100).toFixed(0);
+            var wrCol = s.winRate >= 0.54 ? 'var(--accent2)' : s.winRate >= 0.45 ? 'var(--warn)' : 'var(--danger)';
+            var pnlCol = s.totalPnl>0 ? 'var(--accent2)' : 'var(--danger)';
+            return '<tr style="border-top:1px solid rgba(255,255,255,0.05)">'
+              +'<td>'+s.symbol+'</td>'
+              +'<td style="text-align:right">'+s.trades+'</td>'
+              +'<td style="text-align:right;color:'+wrCol+'">'+wr+'%</td>'
+              +'<td style="text-align:right;color:'+pnlCol+'">'+s.totalPnl.toFixed(2)+'</td>'
+              +'<td style="text-align:right;color:'+pnlCol+'">'+s.avgPnl.toFixed(3)+'</td></tr>';
+          }).join('') + '</table>';
+      }
+    }
+  } catch(e) { document.getElementById('sig-analysis-summary').textContent = 'Fehler: '+e.message; }
+}
+
+setTimeout(loadSignalAnalysis, 3000);
+setInterval(loadSignalAnalysis, 60000);
 
 // Status beim Start laden
 setTimeout(loadModeStatus, 1000);

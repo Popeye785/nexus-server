@@ -7228,6 +7228,90 @@ app.post('/api/profitoptimizer/recalc', (req,res) => res.json(ProfitOptimizer.ca
 app.get('/api/stale/snapshot',(req,res)=>res.json(StaleOrderCleaner.snapshot()));
 app.post('/api/stale/run',(req,res)=>res.json(StaleOrderCleaner.run()));
 
+// Signal-Performance-Analyse (ohne entry_strength - Spalte existiert nicht)
+app.get('/api/analysis/signals', (req,res) => {
+  try {
+    // Buckets: 0.08-0.10, 0.10-0.12, 0.12-0.15, 0.15-0.20, 0.20+ (Absolutwerte)
+    const trades = DB.db.prepare(`
+      SELECT pnl, exit_reason, direction, strategy, symbol,
+             entry_price, exit_price, hold_ms,
+             (pnl > 0) AS win
+      FROM strategy_performance
+      WHERE pnl IS NOT NULL AND strategy LIKE '%DEMO%'
+      ORDER BY ts DESC LIMIT 500
+    `).all();
+
+    // PnL-Buckets (absolute USDT)
+    const buckets = [
+      { label:'Verlust >5',   min:-999, max:-5 },
+      { label:'Verlust 1-5',  min:-5,   max:-1 },
+      { label:'Verlust <1',   min:-1,   max:0  },
+      { label:'Gewinn <1',    min:0,    max:1  },
+      { label:'Gewinn 1-5',   min:1,    max:5  },
+      { label:'Gewinn >5',    min:5,    max:999},
+    ];
+    const result = buckets.map(b => {
+      const inB = trades.filter(t => (t.pnl||0) >= b.min && (t.pnl||0) < b.max);
+      const n = inB.length;
+      const wins = inB.filter(t => t.pnl > 0).length;
+      const totalPnl = inB.reduce((s,t)=>s+(t.pnl||0), 0);
+      return {
+        range: b.label, trades: n, wins, losses: n-wins,
+        winRate: n>0 ? wins/n : 0,
+        totalPnl, avgPnl: n>0 ? totalPnl/n : 0,
+      };
+    });
+
+    // Symbol-Heatmap
+    const bySymbol = {};
+    for (const t of trades) {
+      const s = t.symbol || '?';
+      if (!bySymbol[s]) bySymbol[s] = { trades:0, wins:0, pnl:0 };
+      bySymbol[s].trades++;
+      if (t.pnl > 0) bySymbol[s].wins++;
+      bySymbol[s].pnl += t.pnl || 0;
+    }
+    const symbolStats = Object.entries(bySymbol).map(([s,d]) => ({
+      symbol: s, trades: d.trades,
+      winRate: d.trades>0 ? d.wins/d.trades : 0,
+      totalPnl: d.pnl, avgPnl: d.trades>0 ? d.pnl/d.trades : 0,
+    })).sort((a,b) => b.trades - a.trades);
+
+    // Exit-Reason-Aufschluesselung
+    const byReason = {};
+    for (const t of trades) {
+      const r = t.exit_reason || 'UNKNOWN';
+      if (!byReason[r]) byReason[r] = { trades:0, wins:0, pnl:0 };
+      byReason[r].trades++;
+      if (t.pnl > 0) byReason[r].wins++;
+      byReason[r].pnl += t.pnl || 0;
+    }
+    const exitReasons = Object.entries(byReason).map(([r,d]) => ({
+      reason: r,
+      trades: d.trades,
+      winRate: d.trades>0 ? d.wins/d.trades : 0,
+      totalPnl: d.pnl,
+      avgPnl: d.trades>0 ? d.pnl/d.trades : 0,
+    })).sort((a,b) => b.trades - a.trades);
+
+    const totalN = trades.length;
+    const totalWins = trades.filter(t=>t.pnl>0).length;
+    const totalPnl = trades.reduce((s,t)=>s+(t.pnl||0), 0);
+
+    res.json({
+      totalTrades: totalN,
+      winRate: totalN>0 ? totalWins/totalN : 0,
+      totalPnl,
+      avgPnl: totalN>0 ? totalPnl/totalN : 0,
+      pnlBuckets: result,
+      exitReasons: exitReasons.slice(0, 15),
+      symbolStats: symbolStats.slice(0, 15),
+    });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // StaleOrderCleaner Diagnose
 app.get('/api/stale/snapshot', (req,res) => res.json(StaleOrderCleaner.snapshot()));
 app.post('/api/stale/run', async (req,res) => res.json(await StaleOrderCleaner.run()));
