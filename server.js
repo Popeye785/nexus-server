@@ -3317,7 +3317,9 @@ const ExitEngine = {
     } else {
       this.tpslLevels[tradeId] = {
         stopLoss:   entryPrice - m*atr*(ProfitOptimizer.getATR_SL()),
-        takeProfit: entryPrice + m*atr*(ProfitOptimizer.getATR_TP()),
+        // Phase 3.3: Fee-Aware TP - Ziel um Round-Trip-Fees nach oben verschieben
+        // Damit der 'Profit' nach Abzug der 0.08% Fees wirklich der gewuenschte ist
+        takeProfit: entryPrice + m*atr*(ProfitOptimizer.getATR_TP()) + m*entryPrice*(CFG.MAKER_FEE + CFG.TAKER_FEE),
         trailHigh:  entryPrice,
         atr, side, entry: entryPrice, adaptive: false,
       };
@@ -9950,7 +9952,9 @@ const AdaptiveSLTP = {
 
     const dir = side === 'buy' ? 1 : -1;
     const sl  = entryPrice - dir * atr * profile.slMult;
-    const tp  = entryPrice + dir * atr * profile.tpMult;
+    // Phase 3.3: Fee-Aware TP - 0.08% Puffer fuer Round-Trip-Fees
+    const feeBuffer = entryPrice * (CFG.MAKER_FEE + CFG.TAKER_FEE);
+    const tp  = entryPrice + dir * (atr * profile.tpMult + feeBuffer);
 
     return {
       stopLoss:   sl,
