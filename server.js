@@ -139,6 +139,21 @@ const DB = (() => {
       open REAL, high REAL, low REAL, close REAL, vol REAL,
       PRIMARY KEY (symbol, granularity, ts)
     );
+CREATE TABLE IF NOT EXISTS wallet_ledger (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      ts INTEGER NOT NULL,
+      op TEXT NOT NULL,
+      amount REAL NOT NULL,
+      reason TEXT,
+      trade_id TEXT,
+      before_trading REAL,
+      after_trading REAL,
+      before_total REAL,
+      after_total REAL,
+      mode TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_ledger_ts ON wallet_ledger(ts);
+    CREATE INDEX IF NOT EXISTS idx_ledger_op ON wallet_ledger(op);
     CREATE TABLE IF NOT EXISTS strategy_performance (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       strategy TEXT NOT NULL,
@@ -215,6 +230,8 @@ const DB = (() => {
     insertLog:      db.prepare(`INSERT INTO system_log (ts,level,module,msg,data) VALUES (?,?,?,?,?)`),
     getLogs:        db.prepare(`SELECT * FROM system_log ORDER BY ts DESC LIMIT ?`),
     insertSignal:   db.prepare(`INSERT OR REPLACE INTO signals VALUES (?,?,?,?,?,?,?,?,?)`),
+    insertLedger:db.prepare(`INSERT INTO wallet_ledger (ts,op,amount,reason,trade_id,before_trading,after_trading,before_total,after_total,mode) VALUES (?,?,?,?,?,?,?,?,?,?)`),
+    getLedgerRecent:db.prepare(`SELECT * FROM wallet_ledger ORDER BY ts DESC LIMIT ?`),
     insertStratPerf:db.prepare(`INSERT INTO strategy_performance (strategy,symbol,direction,entry_price,exit_price,pnl,hold_ms,exit_reason,ts) VALUES (?,?,?,?,?,?,?,?,?)`),
     getStratPerf:   db.prepare(`SELECT strategy, COUNT(*) as trades, SUM(pnl) as total_pnl, AVG(pnl) as avg_pnl, SUM(CASE WHEN pnl>0 THEN 1 ELSE 0 END) as wins FROM strategy_performance WHERE ts > ? GROUP BY strategy`),
     insertBalance:  db.prepare(`INSERT OR REPLACE INTO balance_history VALUES (?,?,?,?,?)`),
@@ -3447,11 +3464,12 @@ const Trades = {
       RLAgent.learn(pnlForRL, freshCandles);
     } catch(e){ try{Log.warn('Trades','err: '+e.message);}catch(_){} }
 
-    // Demo Wallet 70/30 Update
-    if (typeof DemoEngine !== 'undefined' && DemoEngine.wallet && trade.strategy !== 'DEMO_UNIFIED') {
-      // Phase 2.4b: via WalletProvider
-      WalletProvider.credit(trade.size);
-      WalletProvider.applyPnL(pnl);
+    // Phase 3.9c: Demo Wallet Update fuer ALLE Demo-Trades (auch DEMO_UNIFIED)
+    // Der alte Ausschluss war der Bug: Boot/Stale-Cleanup bucht sonst nicht zurueck.
+    // Pfad A (DemoEngine._checkExits) ruft jetzt Trades.close statt selbst zu buchen.
+    if (typeof DemoEngine !== 'undefined' && DemoEngine.wallet && !DemoEngine.liveMode) {
+      WalletProvider.credit(trade.size, 'Trade exit ' + reason, id);
+      WalletProvider.applyPnL(pnl, id);
       try { DemoEngine._persistWallet(); } catch(e) {}
     }
     // Push-Notify: Telegram bei PnL >= 50 USDT
@@ -4005,30 +4023,37 @@ const WalletProvider = {
   },
 
   // ── Schreiben (nur DEMO, LIVE ist read-only) ──
-  debit(amount) {
+  debit(amount, reason, tradeId) {
     if (this._mode() === 'LIVE') {
-      // LIVE-Wallet wird ueber echte Bitget-Orders bewegt, nicht manuell
       return { ok:false, reason:'LIVE_READONLY' };
     }
     if (!DemoEngine.wallet) return { ok:false, reason:'NO_WALLET' };
+    const beforeT = DemoEngine.wallet.trading;
+    const beforeTot = DemoEngine.wallet.total;
     DemoEngine.wallet.trading = Math.max(0, DemoEngine.wallet.trading - amount);
     DemoEngine.wallet.total = DemoEngine.wallet.reserve + DemoEngine.wallet.trading;
     try { DemoEngine._persistWallet(); } catch(_) {}
+    try { DB.insertLedger.run(Date.now(),'DEBIT',amount,reason||null,tradeId||null,beforeT,DemoEngine.wallet.trading,beforeTot,DemoEngine.wallet.total,'DEMO'); } catch(_){}
     return { ok:true, mode:'DEMO', newTrading: DemoEngine.wallet.trading };
   },
 
-  credit(amount) {
+  credit(amount, reason, tradeId) {
     if (this._mode() === 'LIVE') return { ok:false, reason:'LIVE_READONLY' };
     if (!DemoEngine.wallet) return { ok:false, reason:'NO_WALLET' };
     const cap = DemoEngine.wallet.startTotal || 1000;
+    const beforeT_c = DemoEngine.wallet.trading;
+    const beforeTot_c = DemoEngine.wallet.total;
     DemoEngine.wallet.trading = Math.min(cap, DemoEngine.wallet.trading + amount);
     DemoEngine.wallet.total = DemoEngine.wallet.reserve + DemoEngine.wallet.trading;
     try { DemoEngine._persistWallet(); } catch(_) {}
+    try { DB.insertLedger.run(Date.now(),'CREDIT',amount,reason||null,tradeId||null,beforeT_c,DemoEngine.wallet.trading,beforeTot_c,DemoEngine.wallet.total,'DEMO'); } catch(_){}
     return { ok:true, mode:'DEMO', newTrading: DemoEngine.wallet.trading };
   },
 
   // ── PnL anwenden (70/30-Split bei Gewinn, voller Abzug bei Verlust) ──
-  applyPnL(pnl) {
+  applyPnL(pnl, tradeId) {
+    const beforeT_p = DemoEngine.wallet ? DemoEngine.wallet.trading : 0;
+    const beforeTot_p = DemoEngine.wallet ? DemoEngine.wallet.total : 0;
     if (this._mode() === 'LIVE') return { ok:false, reason:'LIVE_READONLY' };
     if (!DemoEngine.wallet) return { ok:false, reason:'NO_WALLET' };
     const w = DemoEngine.wallet;
@@ -4045,6 +4070,7 @@ const WalletProvider = {
     w.total    = w.reserve + w.trading;
     if (w.total > (w.peakTotal||0)) w.peakTotal = w.total;
     try { DemoEngine._persistWallet(); } catch(_) {}
+    try { DB.insertLedger.run(Date.now(),'PNL',pnl,'applyPnL 70/30 split',null,beforeT_p,DemoEngine.wallet.trading,beforeTot_p,DemoEngine.wallet.total,'DEMO'); } catch(_){}
     return { ok:true, mode:'DEMO', pnl, newTotal: w.total };
   },
 
@@ -7469,6 +7495,56 @@ app.post('/api/risktier/set', (req,res) => res.json(RiskTier.setTier(req.body &&
 app.post('/api/risktier/promote-check', (req,res) => res.json(RiskTier.checkPromotion()));
 app.post('/api/risktier/dryrun/enable', (req,res) => res.json(RiskTier.enableDryRun(req.body||{})));
 app.post('/api/risktier/dryrun/disable', (req,res) => res.json(RiskTier.disableDryRun()));
+
+// WALLET RECONCILER Phase 3.9
+const WalletReconciler = {
+  lastCheck: null, lastDrift: 0, alertThreshold: 1.0,
+  check(autoFix) {
+    const w = DemoEngine && DemoEngine.wallet;
+    if (!w) return { error: 'no wallet' };
+    const startTotal = w.startTotal || 1000;
+    const reserve = w.reserve || 0;
+    let activeSizes = 0, realizedPnl = 0;
+    try { const r = DB.db.prepare("SELECT SUM(size) as s FROM trades WHERE state='POSITION_ACTIVE'").get(); activeSizes = (r && r.s) || 0; } catch(_){}
+    try { const r = DB.db.prepare("SELECT SUM(realized_pnl) as p FROM trades WHERE state='CLOSED'").get(); realizedPnl = (r && r.p) || 0; } catch(_){}
+    const sollTrading = startTotal + realizedPnl - activeSizes - reserve;
+    const istTrading = w.trading || 0;
+    const drift = istTrading - sollTrading;
+    this.lastCheck = Date.now();
+    this.lastDrift = drift;
+    const result = {
+      ts: this.lastCheck, startTotal, reserve, activeSizes, realizedPnl,
+      sollTrading: Math.round(sollTrading*100)/100,
+      istTrading:  Math.round(istTrading*100)/100,
+      drift:       Math.round(drift*100)/100,
+      consistent: Math.abs(drift) < this.alertThreshold,
+    };
+    if (!result.consistent) {
+      try { Log.warn('RECON','DRIFT '+result.drift.toFixed(2)+' USDT (soll='+result.sollTrading+' ist='+result.istTrading+')'); } catch(_){}
+      try { ActionStream.push('ERROR','RECON','Wallet-Drift '+result.drift.toFixed(2)+' USDT',result); } catch(_){}
+      if (autoFix) {
+        const before = { trading: istTrading, total: w.total };
+        w.trading = sollTrading;
+        w.total   = sollTrading + reserve;
+        DemoEngine._saveWallet();
+        try { DB.insertLedger.run(Date.now(),'RECON_FIX',drift,'auto-fix drift',null, before.trading, w.trading, before.total, w.total,'DEMO'); } catch(_){}
+        result.fixed = true;
+        try { Log.info('RECON','Fix: trading '+before.trading.toFixed(2)+' -> '+w.trading.toFixed(2)); } catch(_){}
+      }
+    }
+    return result;
+  },
+  snapshot() { return { lastCheck:this.lastCheck, lastDrift:this.lastDrift, alertThreshold:this.alertThreshold }; },
+};
+setInterval(() => { try { WalletReconciler.check(false); } catch(_){} }, 30*60*1000);
+app.get('/api/recon/check', (req,res) => res.json(WalletReconciler.check(false)));
+app.post('/api/recon/fix',  (req,res) => res.json(WalletReconciler.check(true)));
+app.get('/api/recon/snapshot', (req,res) => res.json(WalletReconciler.snapshot()));
+app.get('/api/recon/ledger', (req,res) => {
+  const limit = Math.min(parseInt(req.query.limit||'50'), 500);
+  try { res.json({ entries: DB.getLedgerRecent.all(limit) }); }
+  catch(e) { res.status(500).json({ error: e.message }); }
+});
 
 // WalletProvider Diagnose
 app.get('/api/wallet/snapshot', (req,res) => res.json(WalletProvider.snapshot()));
@@ -10931,7 +11007,10 @@ const DemoEngine = {
     this.startCapital = capital;
     const walletLoaded = this._loadWallet() || this.wallet.reserve > 0 || this.wallet.pnl !== 0;
     if (!walletLoaded) {
+      const prevT = this.wallet.trading || 0;
+      const prevTot = this.wallet.total || 0;
       this.wallet.total=capital; this.wallet.reserve=0; this.wallet.trading=capital;
+      try { DB.insertLedger.run(Date.now(),'SET_CAPITAL',capital,'setStartCapital',null,prevT,capital,prevTot,capital,'DEMO'); } catch(_){}
       this.wallet.startTotal=capital; this.wallet.peakTotal=capital; this.wallet.dailyStart=capital;
       this.wallet.pnl=0; this.wallet.dailyPnl=0;
       Log.info('DEMO','Wallet neu: '+capital+' USDT');
@@ -11207,17 +11286,37 @@ const DemoEngine = {
 
         if (!exitReason) continue;
 
-        // Exit ausführen
+        // Exit ausführen (Phase 3.9c: via Trades.close - EIN Pfad)
         const exitSlip  = 0.0001 + Math.random() * 0.0003;
         const exitPrice = pos.direction==='BUY' ? price*(1-exitSlip) : price*(1+exitSlip);
-        const rawPnl    = dir * (exitPrice - pos.fillPrice) * (pos.size / pos.fillPrice);
-        const fees      = pos.size * (CFG.MAKER_FEE + CFG.TAKER_FEE);
-        const pnl       = rawPnl - fees;
 
-        // Wallet updaten: 70/30 Split bei Gewinn
-        // Phase 2.4b: via WalletProvider
-        WalletProvider.credit(pos.size); // Kapital zurueck (ohne PnL)
-        WalletProvider.applyPnL(pnl);     // PnL-Split 70/30 + peakTotal-Update
+        // Trades.close() erledigt: PnL-Calc, DB-Update, PerfTracker,
+        // PaperTracker, RL, SymbolBlacklist, DrawdownRecovery UND Wallet-Update
+        let pnl = 0;
+        if (pos.dbTradeId) {
+          try {
+            // Trade-Daten VOR close lesen fuer lokale stats
+            const tBefore = DB.getTrade.get(pos.dbTradeId);
+            Trades.close(pos.dbTradeId, exitPrice, exitReason);
+            const tAfter = DB.getTrade.get(pos.dbTradeId);
+            pnl = (tAfter && tAfter.realized_pnl) || 0;
+          } catch(e) {
+            try { Log.warn('DEMO','Trades.close err: '+e.message); } catch(_){}
+            // Fallback: alte Logik falls DB-Trade fehlt
+            const rawPnl = dir * (exitPrice - pos.fillPrice) * (pos.size / pos.fillPrice);
+            const fees   = pos.size * (CFG.MAKER_FEE + CFG.TAKER_FEE);
+            pnl = rawPnl - fees;
+            WalletProvider.credit(pos.size, 'Trade exit fallback');
+            WalletProvider.applyPnL(pnl);
+          }
+        } else {
+          // Kein DB-Trade: fallback auf alte Logik
+          const rawPnl = dir * (exitPrice - pos.fillPrice) * (pos.size / pos.fillPrice);
+          const fees   = pos.size * (CFG.MAKER_FEE + CFG.TAKER_FEE);
+          pnl = rawPnl - fees;
+          WalletProvider.credit(pos.size, 'Trade exit no-db');
+          WalletProvider.applyPnL(pnl);
+        }
 
         pnl > 0 ? this.stats.wins++ : this.stats.losses++;
 
@@ -11226,18 +11325,8 @@ const DemoEngine = {
         this.trades.unshift(closedTrade);
         if (this.trades.length > 200) this.trades.pop();
 
-        // PaperTracker
-        PaperTracker.record({
-          symbol:     pos.symbol,
-          direction:  pos.direction,
-          strategy:   `DEMO_${pos.signals}`,
-          entryPrice: pos.fillPrice,
-          exitPrice, pnl, reason: exitReason,
-        });
-
-        // RL Feedback
-        const pnlForRL = (exitPrice-pos.fillPrice)/pos.fillPrice*dir;
-        RLAgent.learn(pnlForRL, []);
+        // PaperTracker/RL/Blacklist werden bereits durch Trades.close gerufen
+        // Wir halten hier nur noch In-Memory-Stats aktuell
 
         // Symbol Blacklist bei Verlust
         if (pnl < 0) SymbolBlacklist.recordLoss(pos.symbol, pnl);
