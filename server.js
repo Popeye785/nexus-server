@@ -3799,23 +3799,17 @@ const StaleOrderCleaner = {
           const fees  = size * (CFG.MAKER_FEE + CFG.TAKER_FEE);
           const pnl   = gross - fees;
 
-          // --- DB-Eintrag mit echten Werten ---
-          DB.updateTrade.run('CLOSED', exitPrice, pnl, doClose, now, now, trade.id);
-
-          // --- DEMO-Pfad: Wallet korrekt zurueckbuchen ---
-          if (trade.strategy === 'DEMO_UNIFIED' && !DemoEngine.liveMode) {
-            try {
-              WalletProvider.credit(size);
-              WalletProvider.applyPnL(pnl);
-              // In-memory Position auch schliessen falls noch vorhanden
+          // Phase 3.8: Trades.close() macht alles - PnL-Berechnung, Wallet, PerfTracker, RL
+          // Wir nutzen es statt eigener Buchung -> strategy_performance wird gefuellt
+          try {
+            Trades.close(trade.id, exitPrice, doClose);
+            // In-memory DemoEngine-Position auch schliessen (falls noch da)
+            if (trade.strategy === 'DEMO_UNIFIED' && !DemoEngine.liveMode) {
               for (const [pid, pos] of Object.entries(DemoEngine.positions||{})) {
                 if (pos.dbTradeId === trade.id) { delete DemoEngine.positions[pid]; break; }
               }
-            } catch(e){ try{Log.warn('STALE','wallet buchen err: '+e.message);}catch(_){} }
-          }
-
-          // --- ExitEngine aufraeumen ---
-          try { ExitEngine.cleanup(trade.id); } catch(_){}
+            }
+          } catch(e){ try{Log.warn('STALE','close err: '+e.message);}catch(_){} }
 
           this.cleaned.unshift({ ts: now, id: trade.id, symbol: trade.symbol, reason: doClose, age: ageH + 'h', exitPrice, pnl });
           count++;
@@ -12684,23 +12678,10 @@ async function boot() {
             } catch(_){}
             if (!exitPrice && t.entry_price) exitPrice = t.entry_price;
 
-            const entry = t.entry_price || 0;
-            const size  = t.size || 0;
-            const dir   = (t.side === 'sell') ? -1 : 1;
-            const gross = entry > 0 ? (dir * (exitPrice - entry) / entry) * size : 0;
-            const fees  = size * (CFG.MAKER_FEE + CFG.TAKER_FEE);
-            const pnl   = gross - fees;
-
-            DB.updateTrade.run('CLOSED', exitPrice, pnl, 'BOOT_CLEANUP', Date.now(), Date.now(), t.id);
-
-            // Wallet korrekt zurueckbuchen
-            try {
-              WalletProvider.credit(size);
-              WalletProvider.applyPnL(pnl);
-              totalCredited += size;
-            } catch(e){ try{Log.warn('BOOT','wallet credit err: '+e.message);}catch(_){} }
-
-            Log.boot('Zombie-Close '+t.symbol+' size='+size.toFixed(2)+' exit='+exitPrice.toFixed(4)+' pnl='+pnl.toFixed(4));
+            // Phase 3.8: Trades.close macht alles (PnL, Wallet, PerfTracker, RL, Recovery)
+            Trades.close(t.id, exitPrice, 'BOOT_CLEANUP');
+            totalCredited += (t.size || 0);
+            Log.boot('Zombie-Close '+t.symbol+' size='+(t.size||0).toFixed(2)+' exit='+exitPrice.toFixed(4));
           } catch(e){ try{Log.warn('BOOT','zombie err: '+e.message);}catch(_){} }
         }
         Log.boot('Zombie-Cleanup: '+zombies.length+' Trades geschlossen, '+totalCredited.toFixed(2)+' USDT zurueckgebucht');
