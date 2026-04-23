@@ -3816,6 +3816,129 @@ const StaleOrderCleaner = {
 };
 
 
+const DBJanitor = {
+  timer: null,
+  interval: 1800000,
+  pending: {},
+  PENDING_TTL: 86400000,
+  history: [],
+
+  async scan() {
+    const clusters = [];
+    try {
+      const dupes = DB.db.prepare(`
+        SELECT symbol, entry_price, exit_price, pnl, exit_reason, direction, strategy,
+               COUNT(*) as n, MIN(ts) as min_ts, MAX(ts) as max_ts
+        FROM strategy_performance
+        GROUP BY symbol, entry_price, exit_price, pnl, exit_reason, direction, strategy
+        HAVING n >= 100 AND (max_ts - min_ts) < 300000
+      `).all();
+      for (const d of dupes) {
+        clusters.push({
+          id: 'DUPE_'+d.symbol+'_'+d.exit_reason+'_'+d.min_ts,
+          reason: 'DUPLICATE_FLOOD',
+          count: d.n,
+          symbol: d.symbol, exit_reason: d.exit_reason,
+          timeWindow: ((d.max_ts-d.min_ts)/1000).toFixed(0)+'s',
+          avgPnl: d.pnl,
+          where: "symbol='"+d.symbol+"' AND exit_reason='"+d.exit_reason+"' AND entry_price="+d.entry_price+" AND exit_price="+d.exit_price+" AND ts BETWEEN "+d.min_ts+" AND "+d.max_ts
+        });
+      }
+
+      const longKill = DB.db.prepare(`
+        SELECT COUNT(*) as n, GROUP_CONCAT(DISTINCT symbol) as symbols
+        FROM strategy_performance
+        WHERE exit_reason='KILL_SWITCH' AND hold_ms > 86400000
+      `).get();
+      if (longKill && longKill.n > 0) {
+        clusters.push({
+          id: 'LONGKILL_'+Date.now(),
+          reason: 'KILL_SWITCH_UNPLAUSIBLE_HOLD',
+          count: longKill.n,
+          symbol: longKill.symbols,
+          where: "exit_reason='KILL_SWITCH' AND hold_ms > 86400000"
+        });
+      }
+
+      const zeroExit = DB.db.prepare(`
+        SELECT COUNT(*) as n, GROUP_CONCAT(DISTINCT exit_reason) as reasons
+        FROM strategy_performance
+        WHERE exit_price=0 AND exit_reason NOT IN ('CLEANUP_STALE','STALE_CLEANUP_TIME','STALE_ORPHAN')
+      `).get();
+      if (zeroExit && zeroExit.n > 0) {
+        clusters.push({
+          id: 'ZEROEXIT_'+Date.now(),
+          reason: 'ZERO_EXIT_PRICE_NONSTALE',
+          count: zeroExit.n,
+          exit_reasons: zeroExit.reasons,
+          where: "exit_price=0 AND exit_reason NOT IN ('CLEANUP_STALE','STALE_CLEANUP_TIME','STALE_ORPHAN')"
+        });
+      }
+    } catch(e) {
+      try{Log.warn('JANITOR','scan err: '+e.message);}catch(_){}
+    }
+
+    for (const cl of clusters) {
+      if (this.pending[cl.id]) continue;
+      this.pending[cl.id] = Object.assign({}, cl, { detectedAt: Date.now() });
+      const msg = 'Janitor findet Datenmuell:\nID: '+cl.id+'\nGrund: '+cl.reason+'\nEintraege: '+cl.count+'\nSymbol: '+(cl.symbol||'-')+'\n\nApprove: /janitor_approve '+cl.id+'\nReject: /janitor_reject '+cl.id;
+      try { TelegramAlarm.warn('JANITOR', msg, { id: cl.id, count: cl.count }); } catch(e) { try{Log.warn('JANITOR','telegram err: '+e.message);}catch(_){} }
+    }
+
+    const now = Date.now();
+    for (const id of Object.keys(this.pending)) {
+      if (now - this.pending[id].detectedAt > this.PENDING_TTL) {
+        this.history.unshift(Object.assign({}, this.pending[id], { result:'EXPIRED', ts:now }));
+        delete this.pending[id];
+      }
+    }
+    if (this.history.length > 100) this.history.length = 100;
+
+    return { clusters: clusters.length, pending: Object.keys(this.pending).length, details: clusters };
+  },
+
+  approve(id) {
+    const cl = this.pending[id];
+    if (!cl) return { error: 'Unbekannte Janitor-ID: '+id };
+    try {
+      const res = DB.db.prepare('DELETE FROM strategy_performance WHERE '+cl.where).run();
+      this.history.unshift(Object.assign({}, cl, { result:'APPROVED', deleted: res.changes, ts: Date.now() }));
+      delete this.pending[id];
+      try { TelegramBot.send('Janitor: '+res.changes+' Eintraege geloescht ('+cl.reason+')'); } catch(_){}
+      Log.info('JANITOR','Approved '+id+': deleted '+res.changes);
+      return { ok:true, deleted: res.changes };
+    } catch(e) {
+      try{Log.warn('JANITOR','approve err: '+e.message);}catch(_){}
+      return { error: e.message };
+    }
+  },
+
+  reject(id) {
+    const cl = this.pending[id];
+    if (!cl) return { error: 'Unbekannte Janitor-ID: '+id };
+    this.history.unshift(Object.assign({}, cl, { result:'REJECTED', ts: Date.now() }));
+    delete this.pending[id];
+    try { TelegramBot.send('Janitor: '+id+' abgelehnt'); } catch(_){}
+    return { ok:true };
+  },
+
+  start() {
+    if (this.timer) return;
+    setTimeout(() => this.scan(), 60000);
+    this.timer = setInterval(() => this.scan(), this.interval);
+    Log.boot('DBJanitor gestartet (alle 30min)');
+  },
+
+  snapshot() {
+    return {
+      interval: this.interval,
+      pending: Object.values(this.pending),
+      pendingCount: Object.keys(this.pending).length,
+      history: this.history.slice(0, 20),
+    };
+  },
+};
+
 const TelegramAlarm = {
   LEVELS:{INFO:0,WARN:1,CRITICAL:2,EMERGENCY:3},
   EMOJIS:{INFO:'ℹ️',WARN:'⚠️',CRITICAL:'🚨',EMERGENCY:'🔴'},
@@ -6802,6 +6925,12 @@ app.post('/api/profitoptimizer/recalc', (req,res) => res.json(ProfitOptimizer.ca
 app.get('/api/stale/snapshot',(req,res)=>res.json(StaleOrderCleaner.snapshot()));
 app.post('/api/stale/run',(req,res)=>res.json(StaleOrderCleaner.run()));
 
+// DBJanitor-API
+app.get('/api/janitor/snapshot', (req,res) => res.json(DBJanitor.snapshot()));
+app.post('/api/janitor/scan', async (req,res) => res.json(await DBJanitor.scan()));
+app.post('/api/janitor/approve', (req,res) => res.json(DBJanitor.approve(req.body?.id)));
+app.post('/api/janitor/reject', (req,res) => res.json(DBJanitor.reject(req.body?.id)));
+
 app.get('/api/telegram/alarms', (req,res) => res.json(TelegramAlarm.snapshot()));
 app.post('/api/telegram/ack', (req,res) => res.json(TelegramAlarm.acknowledge(req.body.ackId)));
 app.post('/api/telegram/test', async (req,res) => { const l=req.body.level||'INFO'; await TelegramAlarm.alert(l,'TEST','Test-Alarm Level '+l); res.json({ok:true,level:l}); });
@@ -7895,7 +8024,13 @@ const TelegramBot = {
         const exp  = await Explainer.explain(sym2);
         await this.send('🔍 ERKLÄRUNG: '+sym2+'\n\n'+exp.summary);
         break;
-      case '/ack':
+      case '/janitor_approve':
+        if (args[0]) { const r = DBJanitor.approve(args[0]); await this.send(r.ok ? 'Approved: '+r.deleted+' geloescht' : 'Fehler: '+r.error); } else await this.send('Format: /janitor_approve <id>');
+        break;
+      case '/janitor_reject':
+        if (args[0]) { const r = DBJanitor.reject(args[0]); await this.send(r.ok ? 'Rejected.' : 'Fehler: '+r.error); } else await this.send('Format: /janitor_reject <id>');
+        break;
+            case '/ack':
         const ackParts = (text||'').split(' ');
         if (ackParts[1]) { const r = TelegramAlarm.acknowledge(ackParts[1]); await this.send(r.ok ? '✅ Bestätigt' : '❌ ' + (r.error||'Fehler')); }
         else { await this.send('Nutze: /ack ACK-ID'); }
@@ -11926,7 +12061,9 @@ async function boot() {
     Log.boot('DemoEngine auto-gestartet (PAPER Modus)');
   }
 
-  Log.boot(`BOOT COMPLETE | Balance: ${Balance.usable.toFixed(2)} USDT | Mode: ${DemoEngine.mode} | ML: ${mlLoaded.loaded > 0 ? 'GELADEN' : 'LEER'}`);
+  try { DBJanitor.start(); } catch(e) { try{Log.warn('BOOT','Janitor err: '+e.message);}catch(_){} }
+
+    Log.boot(`BOOT COMPLETE | Balance: ${Balance.usable.toFixed(2)} USDT | Mode: ${DemoEngine.mode} | ML: ${mlLoaded.loaded > 0 ? 'GELADEN' : 'LEER'}`);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
