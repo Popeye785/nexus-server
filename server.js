@@ -3826,6 +3826,165 @@ const StaleOrderCleaner = {
 };
 
 
+// ═════════════════════════════════════════════════════════════════════════════
+// EXECUTION ADAPTER — Einziger Unterschied zwischen DEMO und LIVE.
+// DEMO: Realistische Fill-Simulation mit Live-Orderbook.
+// LIVE: Echter Bitget-API-Call.
+// Alles davor (Signal, Gate, Sizing) und danach (Exit, Wallet) ist gemeinsam.
+// ═════════════════════════════════════════════════════════════════════════════
+const ExecutionAdapter = {
+  // Haupt-API: symbol, direction ('BUY'/'SELL'), sizeUSDT, referencePrice, opts
+  async placeOrder(symbol, direction, sizeUSDT, referencePrice, opts) {
+    opts = opts || {};
+    const mode = (DemoEngine && DemoEngine.liveMode) ? 'LIVE' : 'DEMO';
+    const t0 = Date.now();
+
+    if (mode === 'DEMO') {
+      return await this._simulateFill(symbol, direction, sizeUSDT, referencePrice, opts, t0);
+    }
+    return await this._liveFill(symbol, direction, sizeUSDT, referencePrice, opts, t0);
+  },
+
+  // ── DEMO: realistische Fill-Simulation
+  async _simulateFill(symbol, direction, sizeUSDT, referencePrice, opts, t0) {
+    try {
+      // Latenz wie echter Bitget-Call (50-200ms)
+      const latency = 50 + Math.floor(Math.random() * 150);
+      await new Promise(r => setTimeout(r, latency));
+
+      // Orderbook-basierte Slippage (wenn verfuegbar)
+      let slipPct = 0.0002; // Fallback: 0.02%
+      let partialFill = false;
+      let fillSize = sizeUSDT;
+
+      try {
+        const ob = await Bitget.fetchOrderbook(symbol).catch(() => null);
+        if (ob && ob.bids && ob.asks && ob.bids.length && ob.asks.length) {
+          const book = direction === 'BUY' ? ob.asks : ob.bids;
+          let remaining = sizeUSDT;
+          let totalCost = 0;
+          let totalQty = 0;
+          for (const level of book) {
+            const price = parseFloat(level[0]);
+            const qty = parseFloat(level[1]);
+            const levelUSDT = price * qty;
+            if (remaining <= levelUSDT) {
+              const q = remaining / price;
+              totalQty += q;
+              totalCost += remaining;
+              remaining = 0;
+              break;
+            } else {
+              totalQty += qty;
+              totalCost += levelUSDT;
+              remaining -= levelUSDT;
+            }
+          }
+          if (remaining > 0) {
+            // Nicht genug Orderbook-Tiefe - partial fill
+            partialFill = true;
+            fillSize = sizeUSDT - remaining;
+          }
+          if (totalQty > 0 && fillSize > 0) {
+            const avgFillPrice = totalCost / totalQty;
+            slipPct = Math.abs(avgFillPrice - referencePrice) / referencePrice;
+          }
+        }
+      } catch(e) {
+        try{ Log.warn('ADAPTER','orderbook slip calc err: '+e.message); }catch(_){}
+      }
+
+      const fillPrice = direction === 'BUY'
+        ? referencePrice * (1 + slipPct)
+        : referencePrice * (1 - slipPct);
+
+      const result = {
+        ok: true,
+        mode: 'DEMO',
+        symbol, direction,
+        sizeUSDT: fillSize,
+        fillPrice,
+        slippagePct: slipPct,
+        latencyMs: latency,
+        partialFill,
+        orderId: 'DEMO_' + symbol + '_' + Date.now(),
+        t0, tEnd: Date.now(),
+      };
+
+      try {
+        ActionStream.push('ENTRY', symbol,
+          'DEMO '+direction+' '+fillSize.toFixed(2)+' USDT @ '+fillPrice.toFixed(4)+' slip='+(slipPct*100).toFixed(3)+'% lat='+latency+'ms'+(partialFill?' PARTIAL':''),
+          { mode:'DEMO', direction, size:fillSize, fillPrice, slippagePct:slipPct, latencyMs:latency, partialFill });
+      } catch(_){}
+
+      return result;
+    } catch(e) {
+      try{ Log.warn('ADAPTER','sim err: '+e.message); }catch(_){}
+      return { ok:false, mode:'DEMO', error: e.message };
+    }
+  },
+
+  // ── LIVE: echter Bitget-Call
+  async _liveFill(symbol, direction, sizeUSDT, referencePrice, opts, t0) {
+    try {
+      if (!CFG.API_KEY) return { ok:false, mode:'LIVE', error:'NO_API_KEY' };
+      const order = await Bitget.placeSportOrder(symbol, direction.toLowerCase(), sizeUSDT);
+      if (!order || order.code !== '00000') {
+        return { ok:false, mode:'LIVE', error: (order && order.msg) || 'ORDER_REJECTED' };
+      }
+      const orderId = order.data && order.data.orderId;
+
+      // Echten Fill holen (2s warten)
+      await new Promise(r => setTimeout(r, 2000));
+      let fillPrice = referencePrice;
+      let fillSize = sizeUSDT;
+      let partialFill = false;
+      try {
+        const detail = await Bitget.get('/api/v2/spot/trade/orderInfo?orderId=' + orderId);
+        if (detail && detail.data) {
+          const od = Array.isArray(detail.data) ? detail.data[0] : detail.data;
+          if (od.priceAvg && parseFloat(od.priceAvg) > 0) fillPrice = parseFloat(od.priceAvg);
+          if (od.baseVolume && parseFloat(od.baseVolume) > 0) fillSize = parseFloat(od.baseVolume) * fillPrice;
+          const status = od.state || od.status || '';
+          if (status.includes('partial')) partialFill = true;
+        }
+      } catch(e) {
+        try{ Log.warn('ADAPTER','fill-check err: '+e.message); }catch(_){}
+      }
+
+      const slipPct = referencePrice > 0 ? Math.abs(fillPrice - referencePrice) / referencePrice : 0;
+      const result = {
+        ok: true, mode:'LIVE',
+        symbol, direction,
+        sizeUSDT: fillSize,
+        fillPrice, slippagePct: slipPct,
+        latencyMs: Date.now() - t0,
+        partialFill,
+        orderId,
+        t0, tEnd: Date.now(),
+      };
+      try {
+        ActionStream.push('ENTRY', symbol,
+          'LIVE '+direction+' '+fillSize.toFixed(2)+' USDT @ '+fillPrice.toFixed(4)+' slip='+(slipPct*100).toFixed(3)+'% order='+orderId+(partialFill?' PARTIAL':''),
+          { mode:'LIVE', direction, size:fillSize, fillPrice, slippagePct:slipPct, orderId, partialFill });
+      } catch(_){}
+      return result;
+    } catch(e) {
+      try{ Log.warn('ADAPTER','live err: '+e.message); }catch(_){}
+      return { ok:false, mode:'LIVE', error: e.message };
+    }
+  },
+
+  // Diagnose/Snapshot
+  snapshot() {
+    return {
+      currentMode: (DemoEngine && DemoEngine.liveMode) ? 'LIVE' : 'DEMO',
+      apiKeySet: !!CFG.API_KEY,
+      deployMode: CFG.DEPLOY_MODE,
+    };
+  },
+};
+
 const ActionStream = {
   MAX: 500,
   events: [],
@@ -6966,6 +7125,18 @@ app.post('/api/profitoptimizer/recalc', (req,res) => res.json(ProfitOptimizer.ca
 
 app.get('/api/stale/snapshot',(req,res)=>res.json(StaleOrderCleaner.snapshot()));
 app.post('/api/stale/run',(req,res)=>res.json(StaleOrderCleaner.run()));
+
+// ExecutionAdapter Diagnose
+app.get('/api/adapter/snapshot', (req,res) => res.json(ExecutionAdapter.snapshot()));
+app.post('/api/adapter/test', async (req,res) => {
+  const { symbol, direction, size } = req.body || {};
+  if (!symbol || !direction || !size) return res.status(400).json({ error:'symbol/direction/size erforderlich' });
+  const ticker = await Bitget.fetchTicker(symbol).catch(() => null);
+  const price = ticker ? ticker.last : 0;
+  if (!price) return res.status(500).json({ error:'Kein Preis fuer '+symbol });
+  const result = await ExecutionAdapter.placeOrder(symbol, direction, parseFloat(size), price, { dryRun:true });
+  res.json(result);
+});
 
 // ActionStream API
 app.get('/api/stream', (req,res) => {
