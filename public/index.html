@@ -1696,6 +1696,32 @@ return { signal: 'HOLD', strength: 0 };"></textarea>
     <button class="btn btn-blue btn-sm" style="margin-top:8px" onclick="runDBClean()">🗑 JETZT BEREINIGEN</button>
   </div>
 
+  <!-- DB JANITOR -->
+  <div class="card">
+    <div class="ct">🛡 DB-JANITOR</div>
+    <div class="ibanner">Findet Datenmüll automatisch: Duplikat-Floods, unplausible Haltezeiten, fehlerhafte Exits. Scan alle 30 min. Löschen nur nach Approval.</div>
+    <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:8px;margin-bottom:10px">
+      <div style="flex:1;min-width:100px">
+        <div style="font-size:9px;color:var(--dim)">PENDING</div>
+        <div id="jan-pending" style="font-size:16px;font-weight:bold">—</div>
+      </div>
+      <div style="flex:1;min-width:100px">
+        <div style="font-size:9px;color:var(--dim)">INTERVAL</div>
+        <div id="jan-interval" style="font-size:14px">30 min</div>
+      </div>
+      <div style="flex:1;min-width:100px">
+        <div style="font-size:9px;color:var(--dim)">LETZTER EVENT</div>
+        <div id="jan-last" style="font-size:11px">—</div>
+      </div>
+    </div>
+    <button class="btn btn-blue btn-sm" onclick="janitorScan()">🔍 JETZT SCANNEN</button>
+    <div id="jan-pending-list" style="margin-top:12px"></div>
+    <div style="margin-top:12px">
+      <div style="font-size:10px;color:var(--dim);margin-bottom:4px">HISTORIE (letzte 10)</div>
+      <div id="jan-history" style="font-family:monospace;font-size:9px;color:var(--dim);max-height:140px;overflow-y:auto">—</div>
+    </div>
+  </div>
+
   <!-- Wie es funktioniert -->
   <div class="card">
     <div class="ct">WIE ES FUNKTIONIERT</div>
@@ -5171,6 +5197,88 @@ async function toggleDemoLive() {
   loadV9Balance();
   log('OK', going+' Modus aktiviert');
 }
+
+// DBJanitor-Funktionen
+async function janitorLoad() {
+  try {
+    const s = await apiV9('/api/janitor/snapshot');
+    if (!s) return;
+    const pc = document.getElementById('jan-pending');
+    if (pc) { pc.textContent = s.pendingCount || 0; pc.style.color = (s.pendingCount||0) > 0 ? 'var(--danger)' : 'var(--accent2)'; }
+    const intEl = document.getElementById('jan-interval');
+    if (intEl) intEl.textContent = Math.round((s.interval||1800000)/60000) + ' min';
+    const lastEl = document.getElementById('jan-last');
+    if (lastEl) lastEl.textContent = s.history && s.history[0] ? new Date(s.history[0].ts).toLocaleTimeString('de-DE') : '—';
+
+    const pl = document.getElementById('jan-pending-list');
+    if (pl) {
+      if (!s.pending || !s.pending.length) {
+        pl.innerHTML = '<div style="color:var(--accent2);font-size:11px;padding:8px">✓ Keine verdächtigen Cluster</div>';
+      } else {
+        pl.innerHTML = s.pending.map(function(p) {
+          const age = Math.round((Date.now()-p.detectedAt)/60000);
+          return '<div style="padding:8px;background:rgba(255,100,100,0.1);border-left:3px solid var(--danger);margin-bottom:6px;border-radius:4px">'
+            + '<div style="display:flex;justify-content:space-between;align-items:start;gap:8px">'
+            + '<div style="flex:1;min-width:0">'
+            + '<div style="font-weight:bold;color:var(--danger);font-size:11px">'+p.reason+'</div>'
+            + '<div style="font-size:9px;color:var(--dim);margin-top:2px;word-break:break-all">ID: '+p.id+'</div>'
+            + '<div style="font-size:10px;margin-top:4px">Eintraege: <b>'+p.count+'</b> · Symbol: '+(p.symbol||'—')+' · Alter: '+age+'min</div>'
+            + '</div>'
+            + '<div style="display:flex;flex-direction:column;gap:4px">'
+            + '<button class="btn btn-green btn-sm" onclick="janitorApprove(\''+p.id+'\')">APPROVE</button>'
+            + '<button class="btn btn-red btn-sm" onclick="janitorReject(\''+p.id+'\')">REJECT</button>'
+            + '</div>'
+            + '</div>'
+            + '</div>';
+        }).join('');
+      }
+    }
+
+    const hist = document.getElementById('jan-history');
+    if (hist) {
+      if (!s.history || !s.history.length) {
+        hist.textContent = '(noch keine Historie)';
+      } else {
+        hist.innerHTML = s.history.slice(0,10).map(function(e) {
+          const t = new Date(e.ts).toLocaleTimeString('de-DE');
+          const col = e.result==='APPROVED'?'var(--accent2)':e.result==='REJECTED'?'var(--danger)':'var(--dim)';
+          const extra = e.result==='APPROVED' ? ' ('+(e.deleted||0)+' del)' : '';
+          return '<div style="color:'+col+'">['+t+'] '+e.result+' · '+e.reason+extra+'</div>';
+        }).join('');
+      }
+    }
+  } catch(e) { try{log('WARN','Janitor load: '+e.message);}catch(_){} }
+}
+
+async function janitorScan() {
+  try {
+    const r = await apiV9('/api/janitor/scan','POST');
+    log('OK','Janitor Scan: '+(r.clusters||0)+' Cluster, '+(r.pending||0)+' pending');
+    setTimeout(janitorLoad, 500);
+  } catch(e) { log('ERR','Scan: '+e.message); }
+}
+
+async function janitorApprove(id) {
+  if (!confirm('Wirklich APPROVE und loeschen?\nID: '+id)) return;
+  try {
+    const r = await apiV9('/api/janitor/approve','POST',{id:id});
+    if (r.error) { alert('Fehler: '+r.error); return; }
+    log('OK','Janitor: '+r.deleted+' geloescht');
+    janitorLoad();
+  } catch(e) { log('ERR','Approve: '+e.message); }
+}
+
+async function janitorReject(id) {
+  try {
+    const r = await apiV9('/api/janitor/reject','POST',{id:id});
+    if (r.error) { alert('Fehler: '+r.error); return; }
+    log('OK','Janitor: '+id+' abgelehnt');
+    janitorLoad();
+  } catch(e) { log('ERR','Reject: '+e.message); }
+}
+
+setTimeout(janitorLoad, 2000);
+setInterval(janitorLoad, 30000);
 
 // Status beim Start laden
 setTimeout(loadModeStatus, 1000);
