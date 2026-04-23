@@ -12173,13 +12173,21 @@ const CoinScanner = {
 
       Log.info('COIN_SCAN', `Neue Top-Coins: ${topCoins.join(', ')} (vorher: ${prev.join(', ')||'—'})`);
 
+      // Phase 3.8c: Telegram-Updates gedrosselt auf max. 1x alle 4h (Anti-Spam)
+      const TG_MIN_INTERVAL_MS = 4 * 60 * 60 * 1000;
       if (JSON.stringify(prev) !== JSON.stringify(topCoins)) {
-        const msg = `🔍 Coin-Scanner Update:\n`
-          + topCoins.map((s,i) => {
-              const r = this.rankings[i];
-              return `#${i+1} ${s}: Score ${r.totalScore.toFixed(0)} | RSI ${r.rsi?.toFixed(0)} | ATR ${(r.atrPct*100).toFixed(2)}%`;
-            }).join('\n');
-        TelegramBot.send(msg);
+        if (!this._lastTgUpdate || (Date.now() - this._lastTgUpdate) >= TG_MIN_INTERVAL_MS) {
+          const msg = `🔍 Coin-Scanner Update:\n`
+            + topCoins.map((s,i) => {
+                const r = this.rankings[i];
+                return `#${i+1} ${s}: Score ${r.totalScore.toFixed(0)} | RSI ${r.rsi?.toFixed(0)} | ATR ${(r.atrPct*100).toFixed(2)}%`;
+              }).join('\n');
+          TelegramBot.send(msg);
+          this._lastTgUpdate = Date.now();
+        } else {
+          const minsLeft = Math.ceil((TG_MIN_INTERVAL_MS - (Date.now() - this._lastTgUpdate)) / 60000);
+          try { Log.info('COIN_SCAN', 'TG-Update unterdrueckt (naechstes in '+minsLeft+'min)'); } catch(_){}
+        }
       }
     }
 
