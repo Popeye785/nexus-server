@@ -510,6 +510,26 @@ fetch('http://100.67.6.22:3000/api/status').then(r=>r.json()).then(d=>{
     <div id="dashboard-positions" style="font-family:monospace;font-size:10px;color:var(--dim)">Keine offenen Positionen</div>
   </div>
   <div class="card" style="margin-top:0">
+    <div class="ct" style="display:flex;justify-content:space-between;align-items:center">
+      <span>🎞 LIVE FEED · was der Bot gerade macht</span>
+      <span id="feed-dot" style="font-size:10px;color:var(--accent2)">● live</span>
+    </div>
+    <div style="display:flex;gap:4px;margin-bottom:6px;flex-wrap:wrap">
+      <button class="chip active" onclick="feedFilter('ALL',this)">ALL</button>
+      <button class="chip" onclick="feedFilter('TRADE',this)">TRADES</button>
+      <button class="chip" onclick="feedFilter('SIGNAL',this)">SIGNAL</button>
+      <button class="chip" onclick="feedFilter('GATE',this)">GATES</button>
+      <button class="chip" onclick="feedFilter('TG',this)">TG</button>
+      <button class="chip" onclick="feedFilter('ERROR',this)">ERRORS</button>
+      <button class="chip" onclick="feedPause(this)" id="feed-pause-btn">⏸</button>
+    </div>
+    <div id="feed-list" style="font-family:monospace;font-size:10px;color:var(--dim);max-height:240px;overflow-y:auto;background:rgba(0,0,0,0.2);border-radius:4px;padding:6px">Laden...</div>
+    <div style="font-size:8px;color:var(--dim);margin-top:4px;display:flex;justify-content:space-between">
+      <span id="feed-stats">—</span>
+      <span id="feed-last-ts">—</span>
+    </div>
+  </div>
+  <div class="card" style="margin-top:0">
     <div class="ct">📈 EQUITY CURVE</div>
     <canvas id="equity-mini-canvas" width="360" height="70" style="width:100%;display:block;border-radius:6px"></canvas>
     <div style="display:flex;justify-content:space-between;font-family:monospace;font-size:8px;margin-top:4px">
@@ -5279,6 +5299,97 @@ async function janitorReject(id) {
 
 setTimeout(janitorLoad, 2000);
 setInterval(janitorLoad, 30000);
+
+// ActionStream Live-Feed
+var _feedFilter = 'ALL';
+var _feedPaused = false;
+var _feedLastTs = 0;
+var _feedTimer = null;
+
+var FEED_STYLE = {
+  SCAN:   { icon:'🔍', color:'var(--dim)',     bg:'transparent' },
+  SIGNAL: { icon:'📊', color:'var(--accent)',  bg:'rgba(100,150,255,0.05)' },
+  GATE:   { icon:'🚦', color:'var(--warn)',    bg:'rgba(255,180,50,0.05)' },
+  ENTRY:  { icon:'✅', color:'var(--accent2)', bg:'rgba(50,200,100,0.08)' },
+  EXIT:   { icon:'🎯', color:'var(--accent2)', bg:'rgba(50,200,100,0.08)' },
+  TG:     { icon:'📱', color:'#8af',           bg:'transparent' },
+  RECON:  { icon:'🔄', color:'var(--warn)',    bg:'transparent' },
+  ERROR:  { icon:'❌', color:'var(--danger)',  bg:'rgba(255,80,80,0.08)' },
+  ML:     { icon:'🧠', color:'var(--gold)',    bg:'transparent' },
+  RL:     { icon:'🤖', color:'var(--gold)',    bg:'transparent' },
+  INFO:   { icon:'ℹ️', color:'var(--dim)',     bg:'transparent' },
+};
+
+async function feedLoad() {
+  if (_feedPaused) return;
+  try {
+    var d = await apiV9('/api/stream?limit=80');
+    if (!d || !d.events) return;
+    var events = d.events;
+    if (_feedFilter !== 'ALL') {
+      if (_feedFilter === 'TRADE') events = events.filter(e => e.type==='ENTRY' || e.type==='EXIT');
+      else events = events.filter(e => e.type === _feedFilter);
+    }
+    var el = document.getElementById('feed-list');
+    if (!el) return;
+    if (!events.length) { el.innerHTML = '<div style="color:var(--dim);padding:8px;text-align:center">Noch keine Events für diesen Filter</div>'; return; }
+
+    // Highlight-Flag fuer neue Events
+    var latestTs = events[0] ? events[0].ts : 0;
+    var isNew = function(ts) { return ts > _feedLastTs; };
+
+    el.innerHTML = events.map(function(e) {
+      var s = FEED_STYLE[e.type] || FEED_STYLE.INFO;
+      var fresh = isNew(e.ts) ? 'border-left:2px solid '+s.color+';' : 'border-left:2px solid transparent;';
+      var modCol = e.type==='ENTRY' && e.data && e.data.direction==='SELL' ? 'var(--danger)' : s.color;
+      var pnlTxt = '';
+      if (e.type==='EXIT' && e.data && typeof e.data.pnl==='number') {
+        var pnlCol = e.data.pnl>=0 ? 'var(--accent2)' : 'var(--danger)';
+        pnlTxt = ' <span style="color:'+pnlCol+';font-weight:bold">'+(e.data.pnl>=0?'+':'')+e.data.pnl.toFixed(4)+'</span>';
+      }
+      return '<div style="padding:3px 6px;background:'+s.bg+';'+fresh+'margin-bottom:1px;display:flex;gap:8px;align-items:baseline">'
+        + '<span style="color:var(--dim);font-size:9px;min-width:58px">'+e.time+'</span>'
+        + '<span style="min-width:18px">'+s.icon+'</span>'
+        + '<span style="color:'+modCol+';min-width:60px;font-weight:bold">'+e.type+'</span>'
+        + '<span style="color:var(--text);min-width:80px">'+(e.module||'')+'</span>'
+        + '<span style="color:var(--dim);flex:1;word-break:break-word">'+e.msg+pnlTxt+'</span>'
+        + '</div>';
+    }).join('');
+
+    _feedLastTs = latestTs;
+
+    // Stats
+    var st = d.stats || {};
+    var types = st.byType ? Object.keys(st.byType).map(k => k+':'+st.byType[k]).join(' · ') : '';
+    var fs = document.getElementById('feed-stats');
+    if (fs) fs.textContent = (st.total||0)+' Events · '+types;
+    var lt = document.getElementById('feed-last-ts');
+    if (lt && events[0]) lt.textContent = 'letzter: '+events[0].time;
+  } catch(e) { /* still */ }
+}
+
+function feedFilter(type, btn) {
+  _feedFilter = type;
+  document.querySelectorAll('#feed-list').length;
+  var chips = btn.parentElement.querySelectorAll('.chip');
+  chips.forEach(function(c){ c.classList.remove('active'); });
+  btn.classList.add('active');
+  feedLoad();
+}
+
+function feedPause(btn) {
+  _feedPaused = !_feedPaused;
+  btn.textContent = _feedPaused ? '▶' : '⏸';
+  btn.classList.toggle('active', _feedPaused);
+  var dot = document.getElementById('feed-dot');
+  if (dot) { dot.textContent = _feedPaused ? '⏸ pause' : '● live'; dot.style.color = _feedPaused ? 'var(--dim)' : 'var(--accent2)'; }
+  if (!_feedPaused) feedLoad();
+}
+
+// Start
+setTimeout(feedLoad, 1500);
+if (_feedTimer) clearInterval(_feedTimer);
+_feedTimer = setInterval(feedLoad, 2000);
 
 // Status beim Start laden
 setTimeout(loadModeStatus, 1000);

@@ -3279,7 +3279,15 @@ const NoTrade = {
     this.refresh();
     const allow   = this.allGreen();
     const blocked = Object.entries(this.gates).filter(([,v])=>!v).map(([k])=>k);
-    try { ActionStream.push('GATE','NOTRADE', allow?'ALL_GREEN':'BLOCK: '+blocked.join(','), {allow, blocked}); } catch(_){}
+    try {
+      const key = allow ? 'ALL_GREEN' : 'BLOCK:'+blocked.join(',');
+      const now = Date.now();
+      if (key !== this._lastGateKey || (now - (this._lastGateTs||0)) > 60000) {
+        ActionStream.push('GATE','NOTRADE', allow?'ALL_GREEN':'BLOCK: '+blocked.join(','), {allow, blocked});
+        this._lastGateKey = key;
+        this._lastGateTs = now;
+      }
+    } catch(_){}
     return { allowTrade:allow, gates:{...this.gates}, reason: allow?'ALL_GREEN':`NO_TRADE: ${blocked.join(', ')}` };
   }
 };
