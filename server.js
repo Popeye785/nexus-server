@@ -3443,7 +3443,7 @@ const Trades = {
       }
       DemoEngine.wallet.total = DemoEngine.wallet.reserve + DemoEngine.wallet.trading;
       DemoEngine.wallet.pnl = (DemoEngine.wallet.pnl || 0) + pnl;
-      try { require('fs').writeFileSync('/tmp/nexus_demo_wallet.json', JSON.stringify(DemoEngine.wallet)); } catch(e) {}
+      try { DemoEngine._persistWallet(); } catch(e) {}
     }
     // Push-Notify: Telegram bei PnL >= 50 USDT
     try {
@@ -4343,6 +4343,7 @@ const ExecFlow = {
       if (direction==='BUY') DemoEngine.wallet.trading = Math.max(0, DemoEngine.wallet.trading - cost);
       else DemoEngine.wallet.trading = Math.min(DemoEngine.wallet.startTotal, DemoEngine.wallet.trading + cost);
       DemoEngine.wallet.total = DemoEngine.wallet.reserve + DemoEngine.wallet.trading;
+      try { DemoEngine._persistWallet(); } catch(_) {}
       Log.info('EXEC', `DEMO ${symbol} ${direction} ${size.toFixed(2)} @ ${fillPrice.toFixed(4)} (slip:${(slip*100).toFixed(3)}%)`, { corrId });
       return { ok:true, mode:'DEMO', tradeId, symbol, side:direction, size, price:fillPrice, slippage:(slip*100).toFixed(3)+'%', corrId };
     }
@@ -10188,11 +10189,27 @@ const DemoEngine = {
     wins: 0, losses: 0, startedAt: null,
   },
 
+  WALLET_PATH: require('path').join(process.env.HOME,'NEXUS_CLEAN','data','demo_wallet.json'),
+  _persistWallet() {
+    try {
+      require('fs').writeFileSync(this.WALLET_PATH, JSON.stringify(this.wallet));
+    } catch(e) { try{Log.warn('DEMO','Wallet persist failed: '+e.message);}catch(_){} }
+  },
+  _loadWallet() {
+    try {
+      if (require('fs').existsSync(this.WALLET_PATH)) {
+        const w = JSON.parse(require('fs').readFileSync(this.WALLET_PATH,'utf8'));
+        if (w && typeof w.total==='number') { Object.assign(this.wallet, w); return true; }
+      }
+    } catch(e) { try{Log.warn('DEMO','Wallet load failed: '+e.message);}catch(_){} }
+    return false;
+  },
+
   // ── STARTEN ──────────────────────────────────────────────────────────────
   start(capital=1000) {
     if (this.running) return { error: 'Demo läuft bereits' };
     this.startCapital = capital;
-    const walletLoaded = this.wallet.reserve > 0 || this.wallet.pnl !== 0;
+    const walletLoaded = this._loadWallet() || this.wallet.reserve > 0 || this.wallet.pnl !== 0;
     if (!walletLoaded) {
       this.wallet.total=capital; this.wallet.reserve=0; this.wallet.trading=capital;
       this.wallet.startTotal=capital; this.wallet.peakTotal=capital; this.wallet.dailyStart=capital;
@@ -10358,6 +10375,7 @@ const DemoEngine = {
     // Kapital reservieren
     this.wallet.trading -= size;
     this.stats.trades++;
+    this._persistWallet();
 
     const sigStr = signals.map(s=>s.strategy).join('+');
     Log.info('DEMO', `TRADE: ${direction} ${symbol} ${size.toFixed(2)}USDT @ ${fillPrice.toFixed(4)} [${sigStr}]`);
@@ -10453,7 +10471,7 @@ const DemoEngine = {
         }
         delete this.positions[id];
 
-        try { require('fs').writeFileSync('/tmp/nexus_demo_wallet.json', JSON.stringify(this.wallet)); } catch(_) {}
+        this._persistWallet();
 
         const emoji = pnl>0 ? '✅' : '❌';
         Log.info('DEMO', `${emoji} EXIT: ${pos.symbol} ${exitReason} PnL: ${pnl.toFixed(4)} USDT`);
@@ -10491,6 +10509,7 @@ const DemoEngine = {
   dailyReset() {
     this.wallet.dailyStart = this.wallet.total;
     this.wallet.dailyPnl   = 0;
+    this._persistWallet();
     TelegramBot.send('🌅 Demo Tagesreset\n'+this._report());
   },
 
@@ -11868,9 +11887,8 @@ async function boot() {
   } catch(_) {}
 
   try {
-    const _sw = require('fs').readFileSync('/tmp/nexus_demo_wallet.json', 'utf8');
-    const _wl = JSON.parse(_sw);
-    if (_wl && _wl.total > 0) { DemoEngine.wallet = _wl; Log.boot('Wallet geladen: T='+_wl.total.toFixed(2)); }
+    if (DemoEngine._loadWallet()) Log.boot('Wallet geladen: T='+DemoEngine.wallet.total.toFixed(2));
+    else Log.boot('Wallet: Neustart');
   } catch(_) { Log.boot('Wallet: Neustart'); }
 
   // Auto-Start DemoEngine im PAPER Modus
