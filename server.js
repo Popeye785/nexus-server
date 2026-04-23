@@ -2945,7 +2945,7 @@ const Balance = {
     this.reserve += rs; this.trading += ts; this.usable += profit;
     this.effective = this.trading; this.dailyPnL += profit;
     // Persist balance snapshot
-    try { DB.insertBalance.run(Date.now(), this.usable, this.reserve, this.trading, this.dailyPnL); } catch(_){}
+    try { DB.insertBalance.run(Date.now(), this.usable, this.reserve, this.trading, this.dailyPnL); } catch(e){ try{Log.warn('Balance','err: '+e.message);}catch(_){} }
     return { reserveShare: rs, tradingShare: ts };
   },
 
@@ -3429,7 +3429,7 @@ const Trades = {
       const freshCandles = [];
       const pnlForRL = trade.entry_price>0 ? (exitPrice-trade.entry_price)/trade.entry_price*(dir) : 0;
       RLAgent.learn(pnlForRL, freshCandles);
-    } catch(_) {}
+    } catch(e){ try{Log.warn('Trades','err: '+e.message);}catch(_){} }
 
     // Demo Wallet 70/30 Update
     if (typeof DemoEngine !== 'undefined' && DemoEngine.wallet && trade.strategy !== 'DEMO_UNIFIED') {
@@ -3451,7 +3451,7 @@ const Trades = {
         const emoji = pnl > 0 ? '💰' : '🔴';
         TelegramBot.send(emoji + ' Trade geschlossen: ' + trade.symbol + '\nPnL: ' + pnl.toFixed(2) + ' USDT\nReason: ' + reason);
       }
-    } catch(_) {}
+    } catch(e){ try{Log.warn('Trades','err: '+e.message);}catch(_){} }
     Log.info('TRADE', `Closed: ${id} exitPrice=${exitPrice} pnl=${pnl.toFixed(4)} reason=${reason}`);
 
     // Win-Rate Check: einmalig Telegram wenn Demo >= 52%
@@ -3468,7 +3468,7 @@ const Trades = {
           }
         }
       }
-    } catch(_) {}
+    } catch(e){ try{Log.warn('Trades','err: '+e.message);}catch(_){} }
     return pnl;
   },
 
@@ -3567,7 +3567,7 @@ const Recon = {
           if (!found && t.state==='SUBMITTED') {
             this.mismatches.push({ type:'ORPHANED_ORDER', tradeId:t.id, orderId:t.order_id });
           }
-        } catch(_){}
+        } catch(e){ try{Log.warn('Recon','err: '+e.message);}catch(_){} }
       }
       this.lastRun = Date.now();
       Log.info('RECON', `State: ${this.state} delta=${delta.toFixed(2)} pct=${(pct*100).toFixed(2)}%`);
@@ -3767,7 +3767,7 @@ const StaleOrderCleaner = {
             this.cleaned.unshift({ ts: now, id: trade.id, symbol: trade.symbol, reason: 'STALE_TIME', age: ageH + 'h' });
             count++;
             Log.warn('STALE', 'Trade ' + trade.symbol + ' geschlossen — ' + ageH + 'h alt (max ' + CFG.MAX_HOLD_HOURS + 'h)');
-          } catch (_) {}
+          } catch(e){ try{Log.warn('StaleOrderCleaner','err: '+e.message);}catch(_){} }
           continue;
         }
 
@@ -3780,7 +3780,7 @@ const StaleOrderCleaner = {
               this.cleaned.unshift({ ts: now, id: trade.id, symbol: trade.symbol, reason: 'ORPHAN', age: ageH + 'h' });
               count++;
               Log.warn('STALE', 'Orphan Trade ' + trade.symbol + ' geschlossen — nicht in DemoEngine');
-            } catch (_) {}
+            } catch(e){ try{Log.warn('StaleOrderCleaner','err: '+e.message);}catch(_){} }
           }
         }
       }
@@ -3828,7 +3828,7 @@ const TelegramAlarm = {
     this.recentAlarms[key]=now;
     const entry={ts:now,time:new Date().toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit',second:'2-digit'}),level,module,message,data:JSON.stringify(data).slice(0,200)};
     this.auditTrail.unshift(entry);if(this.auditTrail.length>200)this.auditTrail.pop();
-    try{DB.insertLog.run(now,'TG_'+level,module,message,JSON.stringify(data).slice(0,500));}catch(_){}
+    try{DB.insertLog.run(now,'TG_'+level,module,message,JSON.stringify(data).slice(0,500));}catch(e){ try{Log.warn('TelegramAlarm','err: '+e.message);}catch(_){} }
     const prefix=level==='EMERGENCY'?'🔴🔴 NOTFALL 🔴🔴':level==='CRITICAL'?'🚨 KRITISCH':level==='WARN'?'⚠️ WARNUNG':'ℹ️ INFO';
     let msg=prefix+'\n'+entry.time+' | '+module+'\n━━━━━━━━━━━━━━━━━━━━\n'+message;
     if(data.action)msg+='\nAktion: '+data.action;
@@ -3838,7 +3838,7 @@ const TelegramAlarm = {
       // Eskalation nur 1x, nicht wiederholt
       if(!this._lastEscalation || Date.now()-this._lastEscalation > this.ESCALATION_MS) { setTimeout(()=>this.checkEscalation(ackId),this.ESCALATION_MS); }
     }
-    try{const r=await TelegramBot.send(msg);return(r&&r.sent)?{sent:true,messageId:r.messageId}:{sent:false,reason:(r&&r.reason)||'UNKNOWN'};}catch(e){try{Log.warn('TELEGRAM','alert failed: '+e.message);}catch(_){} return{sent:false,reason:e.message};}
+    try{const r=await TelegramBot.send(msg);return(r&&r.sent)?{sent:true,messageId:r.messageId}:{sent:false,reason:(r&&r.reason)||'UNKNOWN'};}catch(e){try{Log.warn('TELEGRAM','alert failed: '+e.message);}catch(e){ try{Log.warn('TelegramAlarm','err: '+e.message);}catch(_){} } return{sent:false,reason:e.message};}
   },
   info(m,msg,d){return this.alert('INFO',m,msg,d);},
   warn(m,msg,d){return this.alert('WARN',m,msg,d);},
@@ -3848,7 +3848,7 @@ const TelegramAlarm = {
     const a=this.pendingAcks[ackId];if(!a||a.acknowledged)return;
     if(!a.escalated){a.escalated=true;
       TelegramBot.send('🔴🔴 ESKALATION\nAlarm nicht bestätigt!\n'+a.module+': '+a.message+'\n\n⚠️ Safe Mode aktiviert\n/ack '+ackId);
-      try{if(DemoEngine.running && DemoEngine.wallet && DemoEngine.wallet.trading < 0){DemoEngine.running=false;Log.warn('SAFE_MODE','DemoEngine gestoppt — Wallet negativ');} else { Log.info('SAFE_MODE','Wallet OK — DemoEngine läuft weiter'); }}catch(_){}
+      try{if(DemoEngine.running && DemoEngine.wallet && DemoEngine.wallet.trading < 0){DemoEngine.running=false;Log.warn('SAFE_MODE','DemoEngine gestoppt — Wallet negativ');} else { Log.info('SAFE_MODE','Wallet OK — DemoEngine läuft weiter'); }}catch(e){ try{Log.warn('TelegramAlarm','err: '+e.message);}catch(_){} }
     }
   },
   acknowledge(ackId){
@@ -4100,7 +4100,7 @@ const UnifiedScore = {
     let tw=0,ws=0;for(const[key,data]of Object.entries(scores)){const w=this.WEIGHTS[key]||0;if(w>0&&data.confidence>0){const ew2=w*data.confidence;ws+=data.score*ew2;tw+=ew2;}}
     const uScore=tw>0?ws/tw:0;const direction=uScore>0.08?'BUY':uScore<-0.08?'SELL':'HOLD';const confidence=Math.min(0.95,Math.abs(uScore));
     // SIZING
-    let sizePct=0;if(direction!=='HOLD'){sizePct=0.05+confidence*0.15;if(scores.monteCarlo?.scaleFactor)sizePct*=scores.monteCarlo.scaleFactor;if(scores.volatility?.positionScale)sizePct*=scores.volatility.positionScale;try{sizePct*=DrawdownRecovery.getRestrictions().sizeMult||1;}catch(_){}sizePct=Math.max(0.02,Math.min(0.20,sizePct));}
+    let sizePct=0;if(direction!=='HOLD'){sizePct=0.05+confidence*0.15;if(scores.monteCarlo?.scaleFactor)sizePct*=scores.monteCarlo.scaleFactor;if(scores.volatility?.positionScale)sizePct*=scores.volatility.positionScale;try{sizePct*=DrawdownRecovery.getRestrictions().sizeMult||1;}catch(e){ try{Log.warn('UnifiedScore','err: '+e.message);}catch(_){} }sizePct=Math.max(0.02,Math.min(0.20,sizePct));}
     const result={symbol,direction,confidence:parseFloat(confidence.toFixed(4)),unifiedScore:parseFloat(uScore.toFixed(4)),sizePct:parseFloat(sizePct.toFixed(4)),sizeUSDT:0,blocked:false,blocks:[],reason:direction==='HOLD'?'SCORE_ZU_SCHWACH ('+uScore.toFixed(3)+')':direction+' conf='+confidence.toFixed(2)+' size='+(sizePct*100).toFixed(1)+'%',sourcesUsed:Object.keys(scores).filter(k=>scores[k].confidence>0).length,totalSources:Object.keys(scores).length,scores,computeMs:Date.now()-t0};
     Log.info('UNIFIED',symbol+' => '+direction+' score='+uScore.toFixed(3)+' conf='+confidence.toFixed(2)+' size='+(sizePct*100).toFixed(1)+'% ['+result.sourcesUsed+'/'+result.totalSources+'] '+(Date.now()-t0)+'ms');
     return result;
@@ -4192,11 +4192,11 @@ const DecisionFlow = {
     let size = Balance.calcPositionSize(0.5);
     size = RiskLadder.applyToSize(size);
     // Sentiment Scaler
-    try { size = await SentimentScaler.applyToSize(size); } catch(_) {}
+    try { size = await SentimentScaler.applyToSize(size); } catch(e){ try{Log.warn('DecisionFlow','err: '+e.message);}catch(_){} }
     // VaR-Scaler
-    try { size = await VaREngine.applyToSize(size); } catch(_) {}
+    try { size = await VaREngine.applyToSize(size); } catch(e){ try{Log.warn('DecisionFlow','err: '+e.message);}catch(_){} }
     // Drawdown Recovery: reduziert Größe wenn Tagsverlust zu hoch
-    try { size = DrawdownRecovery.applyToSize(size); } catch(_) {}
+    try { size = DrawdownRecovery.applyToSize(size); } catch(e){ try{Log.warn('DecisionFlow','err: '+e.message);}catch(_){} }
     // Recovery Mode: Mindest-Signalstärke erhöhen
     const recoveryRestrictions = DrawdownRecovery.getRestrictions();
     if (strength < recoveryRestrictions.minStrength) {
@@ -4222,7 +4222,7 @@ const DecisionFlow = {
         Log.warn('ANOMALY', anomalyCheck.reason);
         return { approved:false, reason:'ANOMALY_DETECTED: '+anomalyCheck.reason, corrId };
       }
-    } catch(_) {}
+    } catch(e){ try{Log.warn('DecisionFlow','err: '+e.message);}catch(_){} }
 
     // 8b. Fear & Greed Check
     try {
@@ -4231,7 +4231,7 @@ const DecisionFlow = {
         Log.warn('FEARGREED', fgCheck.reason);
         strength = strength * 0.80; // Stärke reduzieren, nicht hart blocken
       }
-    } catch(_) {}
+    } catch(e){ try{Log.warn('DecisionFlow','err: '+e.message);}catch(_){} }
 
     // 8a. Multi-Timeframe Bestätigung (Priorität 1b)
     let mtfResult = { confirmed: true, bonus: 0 };
@@ -4243,7 +4243,7 @@ const DecisionFlow = {
       } else if (mtfResult.confirmed && mtfResult.bonus > 0) {
         strength = Math.min(0.95, strength + mtfResult.bonus);
       }
-    } catch(_) {}
+    } catch(e){ try{Log.warn('DecisionFlow','err: '+e.message);}catch(_){} }
 
     // 8b. News-Sentiment Check (Priorität 2)
     try {
@@ -4252,7 +4252,7 @@ const DecisionFlow = {
         strength = strength * newsCheck.factor;
         Log.warn('NEWS', newsCheck.reason);
       }
-    } catch(_) {}
+    } catch(e){ try{Log.warn('DecisionFlow','err: '+e.message);}catch(_){} }
 
     // 8c. Fed/CPI Hard-Block: High-Impact Makro-Events → keine Trades
     try {
@@ -4266,7 +4266,7 @@ const DecisionFlow = {
         Log.warn('NEWS_BLOCK', 'High-Impact Makro-Event erkannt — Trade blockiert');
         return { approved:false, reason:'NEWS_BLOCK: Fed/CPI/FOMC Event aktiv', corrId };
       }
-    } catch(_) {}
+    } catch(e){ try{Log.warn('DecisionFlow','err: '+e.message);}catch(_){} }
 
     // 8. Funding Rate Check (Punkt 4) – gegen Funding-Richtung warnen
     let fundingSignal = null;
@@ -4276,7 +4276,7 @@ const DecisionFlow = {
         Log.warn('FUNDING', `Funding Rate gegen Trade: ${fundingSignal.reason}`);
         strength = strength * 0.85; // Staerke reduzieren, nicht blocken
       }
-    } catch(_) {}
+    } catch(e){ try{Log.warn('DecisionFlow','err: '+e.message);}catch(_){} }
 
     // 8d. SmartMoney Signal: Akkumulation/Distribution
     try {
@@ -4285,7 +4285,7 @@ const DecisionFlow = {
         strength = Math.max(0.1, Math.min(0.95, strength + smMod));
         Log.info('SMARTMONEY', symbol + ' mod=' + smMod.toFixed(3) + ' str=' + strength.toFixed(3));
       }
-    } catch(_) {}
+    } catch(e){ try{Log.warn('DecisionFlow','err: '+e.message);}catch(_){} }
 
     // 8e. OnChain Whale Flow: Exchange In/Outflow
     try {
@@ -4294,7 +4294,7 @@ const DecisionFlow = {
         strength = Math.max(0.1, Math.min(0.95, strength + ocMod));
         Log.info('ONCHAIN', symbol + ' mod=' + ocMod.toFixed(3) + ' str=' + strength.toFixed(3));
       }
-    } catch(_) {}
+    } catch(e){ try{Log.warn('DecisionFlow','err: '+e.message);}catch(_){} }
 
     // 8f. Reddit Sentiment AI
     try {
@@ -4303,7 +4303,7 @@ const DecisionFlow = {
         strength = Math.max(0.1, Math.min(0.95, strength + rsMod));
         Log.info('REDDIT', symbol + ' mod=' + rsMod.toFixed(3) + ' str=' + strength.toFixed(3));
       }
-    } catch(_) {}
+    } catch(e){ try{Log.warn('DecisionFlow','err: '+e.message);}catch(_){} }
 
     Log.info('DEC', `APPROVED ${symbol} ${direction} size=${size.toFixed(2)} ene=${ene.toFixed(6)}`, { corrId });
     return { approved:true, symbol, direction, strength, size, price, ene, regime:Regime.regime, corrId, fundingSignal, safetyCheck };
