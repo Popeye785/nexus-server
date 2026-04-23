@@ -3442,16 +3442,9 @@ const Trades = {
 
     // Demo Wallet 70/30 Update
     if (typeof DemoEngine !== 'undefined' && DemoEngine.wallet && trade.strategy !== 'DEMO_UNIFIED') {
-      DemoEngine.wallet.trading += trade.size;
-      if (pnl > 0) {
-        DemoEngine.wallet.reserve += pnl * 0.70;
-        DemoEngine.wallet.trading += pnl * 0.30;
-      } else {
-        DemoEngine.wallet.trading += pnl;
-        if (DemoEngine.wallet.trading < 0) DemoEngine.wallet.trading = 0;
-      }
-      DemoEngine.wallet.total = DemoEngine.wallet.reserve + DemoEngine.wallet.trading;
-      DemoEngine.wallet.pnl = (DemoEngine.wallet.pnl || 0) + pnl;
+      // Phase 2.4b: via WalletProvider
+      WalletProvider.credit(trade.size);
+      WalletProvider.applyPnL(pnl);
       try { DemoEngine._persistWallet(); } catch(e) {}
     }
     // Push-Notify: Telegram bei PnL >= 50 USDT
@@ -4771,10 +4764,9 @@ const ExecFlow = {
       if (fillResult.mode === 'DEMO') {
         // Demo-Wallet aktualisieren (bis Phase 2.4 WalletProvider)
         const cost = fillSize;
-        if (direction==='BUY') DemoEngine.wallet.trading = Math.max(0, DemoEngine.wallet.trading - cost);
-        else DemoEngine.wallet.trading = Math.min(DemoEngine.wallet.startTotal, DemoEngine.wallet.trading + cost);
-        DemoEngine.wallet.total = DemoEngine.wallet.reserve + DemoEngine.wallet.trading;
-        try { DemoEngine._persistWallet(); } catch(_) {}
+        // Phase 2.4b: via WalletProvider
+        if (direction==='BUY') WalletProvider.debit(cost);
+        else WalletProvider.credit(cost);
         Log.info('EXEC', 'DEMO '+symbol+' '+direction+' '+fillSize.toFixed(2)+' @ '+fillPrice.toFixed(4)+' (slip:'+(fillResult.slippagePct*100).toFixed(3)+'%)', { corrId });
         return { ok:true, mode:'DEMO', tradeId, symbol, side:direction, size:fillSize, price:fillPrice, slippage:(fillResult.slippagePct*100).toFixed(3)+'%', corrId };
       }
@@ -10849,10 +10841,9 @@ const DemoEngine = {
       pos.dbTradeId = dbTradeId; // DEMO_UNIFIED_DB Referenz
     } catch(_dbErr) { Log.warn('DEMO', 'DB Trade Fehler: ' + _dbErr.message); }
 
-    // Kapital reservieren
-    this.wallet.trading -= size;
+    // Kapital reservieren (Phase 2.4b: via WalletProvider)
+    WalletProvider.debit(size);
     this.stats.trades++;
-    this._persistWallet();
 
     const sigStr = signals.map(s=>s.strategy).join('+');
     Log.info('DEMO', `TRADE: ${direction} ${symbol} ${size.toFixed(2)}USDT @ ${fillPrice.toFixed(4)} [${sigStr}]`);
@@ -10922,18 +10913,9 @@ const DemoEngine = {
         const pnl       = rawPnl - fees;
 
         // Wallet updaten: 70/30 Split bei Gewinn
-        this.wallet.trading += pos.size; // Kapital zurueck
-        if (pnl > 0) {
-          this.wallet.reserve += pnl * 0.70;
-          this.wallet.trading += pnl * 0.30;
-        } else {
-          this.wallet.trading += pnl; // Verlust von trading abziehen
-          if (this.wallet.trading < 0) this.wallet.trading = 0;
-        }
-        this.wallet.total = this.wallet.reserve + this.wallet.trading;
-        this.wallet.pnl     += pnl;
-        this.wallet.dailyPnl+= pnl;
-        if (this.wallet.total > this.wallet.peakTotal) this.wallet.peakTotal = this.wallet.total;
+        // Phase 2.4b: via WalletProvider
+        WalletProvider.credit(pos.size); // Kapital zurueck (ohne PnL)
+        WalletProvider.applyPnL(pnl);     // PnL-Split 70/30 + peakTotal-Update
 
         pnl > 0 ? this.stats.wins++ : this.stats.losses++;
 
