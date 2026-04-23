@@ -2494,7 +2494,7 @@ async function loadV9Status(){
         else { posEl.innerHTML = active.map(t => {
           const col = t.side==='buy'?'var(--accent2)':'var(--danger)';
           const age = Math.round((Date.now()-(t.created_at||0))/60000);
-          const pnl = t.realized_pnl||0;
+          const pnl = t.unrealizedPnl||t.realized_pnl||0;
           const pnlCol = pnl>=0?'var(--accent2)':'var(--danger)';
           return '<div style="padding:6px 0;border-bottom:1px solid rgba(255,255,255,.05)"><div style="display:flex;justify-content:space-between"><span style="color:'+col+';font-weight:bold">'+t.symbol+' '+t.side.toUpperCase()+'</span><span style="color:'+pnlCol+'">'+(pnl>=0?'+':'')+pnl.toFixed(4)+' U</span></div><div style="font-size:8px;color:var(--dim)">Entry: '+(t.entry_price?t.entry_price.toFixed(4):'—')+' · '+age+'min · '+(t.strategy||'AUTO')+'</div></div>';
         }).join(''); }
@@ -2582,14 +2582,16 @@ async function refreshLiveTrades() {
     const d = await apiV9('/api/trades');
     const active = d.active || [];
     const ae = await apiV9('/api/auto/status').catch(()=>null);
-    const stats = ae?.stats || {};
+    const de = await apiV9('/api/demo').catch(()=>null);
+    const isDemoMode = de?.running;
+    const stats = isDemoMode ? (de?.stats||{}) : (ae?.stats||{});
     // Header
     let out = '';
     out += '<div style="display:flex;gap:12px;margin-bottom:8px;padding:6px;background:rgba(0,255,136,.06);border:1px solid rgba(0,255,136,.2);border-radius:6px">';
-    out += '<span>🤖 AutoEngine: <span style="color:var(--accent2)">' + (ae?.running ? 'AKTIV' : 'INAKTIV') + '</span></span>';
-    out += '<span>Scans: <span style="color:var(--accent)">' + (stats.scansTotal||0) + '</span></span>';
-    out += '<span>Trades: <span style="color:var(--accent)">' + (stats.tradesAuto||0) + '</span></span>';
-    out += '<span>Exits: <span style="color:var(--warn)">' + (stats.tradesExited||0) + '</span></span>';
+    out += '<span>🤖 ' + (isDemoMode ? 'DemoEngine' : 'AutoEngine') + ': <span style="color:var(--accent2)">' + ((isDemoMode ? de?.running : ae?.running) ? 'AKTIV' : 'INAKTIV') + '</span></span>';
+    out += '<span>Scans: <span style="color:var(--accent)">' + (stats.scans||stats.scansTotal||0) + '</span></span>';
+    out += '<span>Trades: <span style="color:var(--accent)">' + (stats.trades||stats.tradesAuto||0) + '</span></span>';
+    out += '<span>Exits: <span style="color:var(--warn)">' + (stats.exits||stats.tradesExited||0) + '</span></span>';
     out += '</div>';
     if (!active.length) {
       out += '<div style="color:var(--dim);padding:8px 0">Keine offenen Positionen</div>';
@@ -3167,7 +3169,7 @@ function log(type,msg){const c=document.getElementById('logC'),now=new Date().to
 // ══════════════════════════════════════════════════════════════════
 // CHART ENGINE – Canvas Candlestick Chart
 // ══════════════════════════════════════════════════════════════════
-let chartState = { symbol:'BTCUSDT', granularity:'15m', data:null };
+let chartState = { symbol:'BTCUSDT', granularity:'1h', data:null };
 
 function setChartTF(tf, btn) {
   chartState.granularity = tf;
