@@ -3838,7 +3838,7 @@ const TelegramAlarm = {
       // Eskalation nur 1x, nicht wiederholt
       if(!this._lastEscalation || Date.now()-this._lastEscalation > this.ESCALATION_MS) { setTimeout(()=>this.checkEscalation(ackId),this.ESCALATION_MS); }
     }
-    try{await TelegramBot.send(msg);return{sent:true};}catch(e){return{sent:false};}
+    try{const r=await TelegramBot.send(msg);return(r&&r.sent)?{sent:true,messageId:r.messageId}:{sent:false,reason:(r&&r.reason)||'UNKNOWN'};}catch(e){try{Log.warn('TELEGRAM','alert failed: '+e.message);}catch(_){} return{sent:false,reason:e.message};}
   },
   info(m,msg,d){return this.alert('INFO',m,msg,d);},
   warn(m,msg,d){return this.alert('WARN',m,msg,d);},
@@ -7772,15 +7772,18 @@ const TelegramBot = {
   pollTimer: null,
 
   async send(msg) {
-    if (!this.enabled) return;
+    if (!this.enabled) return { sent:false, reason:'DISABLED' };
     try {
-      await axios.post(`https://api.telegram.org/bot${this.token}/sendMessage`, {
-        chat_id: this.chatId, text: `🤖 NEXUS V9
-
-${msg}`,
-        parse_mode: 'Markdown',
+      const r = await axios.post(`https://api.telegram.org/bot${this.token}/sendMessage`, {
+        chat_id: this.chatId, text: `🤖 NEXUS V9\n\n${msg}`,
       }, { timeout: 5000 });
-    } catch(_) {}
+      return { sent:true, messageId: r.data && r.data.result && r.data.result.message_id };
+    } catch(e) {
+      const statusCode = e.response && e.response.status;
+      const desc = (e.response && e.response.data && e.response.data.description) || e.message;
+      try { Log.warn('TELEGRAM', 'send failed: ' + statusCode + ' ' + desc); } catch(_) {}
+      return { sent:false, reason: desc, code: statusCode };
+    }
   },
 
   async sendReport() {
