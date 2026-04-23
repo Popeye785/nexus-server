@@ -3279,6 +3279,7 @@ const NoTrade = {
     this.refresh();
     const allow   = this.allGreen();
     const blocked = Object.entries(this.gates).filter(([,v])=>!v).map(([k])=>k);
+    try { ActionStream.push('GATE','NOTRADE', allow?'ALL_GREEN':'BLOCK: '+blocked.join(','), {allow, blocked}); } catch(_){}
     return { allowTrade:allow, gates:{...this.gates}, reason: allow?'ALL_GREEN':`NO_TRADE: ${blocked.join(', ')}` };
   }
 };
@@ -3571,6 +3572,7 @@ const Recon = {
       }
       this.lastRun = Date.now();
       Log.info('RECON', `State: ${this.state} delta=${delta.toFixed(2)} pct=${(pct*100).toFixed(2)}%`);
+      try { ActionStream.push('RECON','RECON', this.state+' delta='+delta.toFixed(2), {state:this.state, delta, pct}); } catch(_){}
     } catch(e) {
       this.state = 'ERROR';
       if (CFG.API_KEY) Log.error('RECON', `Failed: ${e.message}`);
@@ -3815,6 +3817,35 @@ const StaleOrderCleaner = {
   },
 };
 
+
+const ActionStream = {
+  MAX: 500,
+  events: [],
+  push(type, module, msg, data) {
+    try {
+      const ev = {
+        ts: Date.now(),
+        time: new Date().toLocaleTimeString('de-DE', {hour:'2-digit',minute:'2-digit',second:'2-digit'}),
+        type: type || 'INFO',
+        module: module || '',
+        msg: String(msg || '').slice(0, 200),
+        data: data || null,
+      };
+      this.events.unshift(ev);
+      if (this.events.length > this.MAX) this.events.length = this.MAX;
+    } catch(_) {}
+  },
+  snapshot(limit, typeFilter) {
+    let list = this.events;
+    if (typeFilter && typeFilter.length) list = list.filter(e => typeFilter.includes(e.type));
+    return list.slice(0, limit || 100);
+  },
+  stats() {
+    const by = {};
+    for (const e of this.events) by[e.type] = (by[e.type]||0) + 1;
+    return { total: this.events.length, byType: by, oldestTs: this.events.length ? this.events[this.events.length-1].ts : null };
+  }
+};
 
 const DBJanitor = {
   timer: null,
@@ -4226,6 +4257,7 @@ const UnifiedScore = {
     let sizePct=0;if(direction!=='HOLD'){sizePct=0.05+confidence*0.15;if(scores.monteCarlo?.scaleFactor)sizePct*=scores.monteCarlo.scaleFactor;if(scores.volatility?.positionScale)sizePct*=scores.volatility.positionScale;try{sizePct*=DrawdownRecovery.getRestrictions().sizeMult||1;}catch(e){ try{Log.warn('UnifiedScore','err: '+e.message);}catch(_){} }sizePct=Math.max(0.02,Math.min(0.20,sizePct));}
     const result={symbol,direction,confidence:parseFloat(confidence.toFixed(4)),unifiedScore:parseFloat(uScore.toFixed(4)),sizePct:parseFloat(sizePct.toFixed(4)),sizeUSDT:0,blocked:false,blocks:[],reason:direction==='HOLD'?'SCORE_ZU_SCHWACH ('+uScore.toFixed(3)+')':direction+' conf='+confidence.toFixed(2)+' size='+(sizePct*100).toFixed(1)+'%',sourcesUsed:Object.keys(scores).filter(k=>scores[k].confidence>0).length,totalSources:Object.keys(scores).length,scores,computeMs:Date.now()-t0};
     Log.info('UNIFIED',symbol+' => '+direction+' score='+uScore.toFixed(3)+' conf='+confidence.toFixed(2)+' size='+(sizePct*100).toFixed(1)+'% ['+result.sourcesUsed+'/'+result.totalSources+'] '+(Date.now()-t0)+'ms');
+    try { ActionStream.push('SIGNAL', symbol, direction+' score='+uScore.toFixed(3)+' conf='+confidence.toFixed(2), {direction,score:uScore,confidence,sizePct}); } catch(_){}
     return result;
   },
   snapshot(){return{weights:this.WEIGHTS};},
@@ -4468,6 +4500,7 @@ const ExecFlow = {
       DemoEngine.wallet.total = DemoEngine.wallet.reserve + DemoEngine.wallet.trading;
       try { DemoEngine._persistWallet(); } catch(_) {}
       Log.info('EXEC', `DEMO ${symbol} ${direction} ${size.toFixed(2)} @ ${fillPrice.toFixed(4)} (slip:${(slip*100).toFixed(3)}%)`, { corrId });
+      try { ActionStream.push('ENTRY', symbol, 'DEMO '+direction+' '+size.toFixed(2)+' @ '+fillPrice.toFixed(4), {mode:'DEMO',direction,size,fillPrice,slip}); } catch(_){}
       return { ok:true, mode:'DEMO', tradeId, symbol, side:direction, size, price:fillPrice, slippage:(slip*100).toFixed(3)+'%', corrId };
     }
 
@@ -4497,6 +4530,7 @@ const ExecFlow = {
         const atr = Ind.atr(candles) || fillPrice*0.01;
         Trades.recordFill(tradeId, fillPrice, atr);
         Log.info('EXEC', `LIVE ORDER ${orderId} ${symbol} ${direction} ${size}`, { corrId });
+        try { ActionStream.push('ENTRY', symbol, 'LIVE '+direction+' '+size+' order='+orderId, {mode:'LIVE',direction,size,orderId}); } catch(_){}
         return { ok:true, mode:'LIVE', tradeId, orderId, symbol, side:direction, size, price, corrId };
       } else {
         DB.db.prepare(`UPDATE trades SET state='REJECTED' WHERE id=?`).run(tradeId);
@@ -6925,6 +6959,13 @@ app.post('/api/profitoptimizer/recalc', (req,res) => res.json(ProfitOptimizer.ca
 app.get('/api/stale/snapshot',(req,res)=>res.json(StaleOrderCleaner.snapshot()));
 app.post('/api/stale/run',(req,res)=>res.json(StaleOrderCleaner.run()));
 
+// ActionStream API
+app.get('/api/stream', (req,res) => {
+  const limit = parseInt(req.query.limit||100);
+  const types = req.query.types ? String(req.query.types).split(',') : null;
+  res.json({ events: ActionStream.snapshot(limit, types), stats: ActionStream.stats() });
+});
+
 // DBJanitor-API
 app.get('/api/janitor/snapshot', (req,res) => res.json(DBJanitor.snapshot()));
 app.post('/api/janitor/scan', async (req,res) => res.json(await DBJanitor.scan()));
@@ -7922,6 +7963,7 @@ const TelegramBot = {
       const r = await axios.post(`https://api.telegram.org/bot${this.token}/sendMessage`, {
         chat_id: this.chatId, text: `🤖 NEXUS V9\n\n${msg}`,
       }, { timeout: 5000 });
+      try { ActionStream.push('TG','TELEGRAM','sent: '+String(msg).slice(0,60)); } catch(_){}
       return { sent:true, messageId: r.data && r.data.result && r.data.result.message_id };
     } catch(e) {
       const statusCode = e.response && e.response.status;
@@ -10453,6 +10495,7 @@ const DemoEngine = {
     if (this._cycleBusy || !this.running) return;
     this._cycleBusy = true;
     this.stats.scans++;
+    try { ActionStream.push('SCAN','DEMO','Scan #'+this.stats.scans+' ('+this.symbols.length+' Symbole)'); } catch(_) {}
 
     // Exits prüfen
     await this._checkExits();
@@ -10543,6 +10586,7 @@ const DemoEngine = {
 
     const sigStr = signals.map(s=>s.strategy).join('+');
     Log.info('DEMO', `TRADE: ${direction} ${symbol} ${size.toFixed(2)}USDT @ ${fillPrice.toFixed(4)} [${sigStr}]`);
+    try { ActionStream.push('ENTRY', symbol, direction+' '+size.toFixed(2)+' USDT @ '+fillPrice.toFixed(4), {direction, size, fillPrice, strategy:'DEMO_UNIFIED'}); } catch(_){}
     this.signals.unshift({ ts:Date.now(), symbol, direction, price:fillPrice, strength, signals:sigStr });
     if (this.signals.length > 50) this.signals.pop();
   },
@@ -10639,6 +10683,7 @@ const DemoEngine = {
 
         const emoji = pnl>0 ? '✅' : '❌';
         Log.info('DEMO', `${emoji} EXIT: ${pos.symbol} ${exitReason} PnL: ${pnl.toFixed(4)} USDT`);
+        try { ActionStream.push('EXIT', pos.symbol, exitReason+' PnL='+pnl.toFixed(4)+' USDT', {reason:exitReason, pnl, exitPrice, direction:pos.direction}); } catch(_){}
 
         // Telegram bei jedem Trade
         TelegramBot.send(
