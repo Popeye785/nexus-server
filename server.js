@@ -67,6 +67,7 @@ const CFG = {
   MIN_USABLE_BALANCE:    10,
   MIN_POSITION_USDT:     5,
   MAX_POSITION_PCT:      0.10,
+  TRADING_BUDGET_USDT:   null,
   MAX_OPEN_TRADES:       5,
 
   // Risk
@@ -3256,7 +3257,7 @@ const NoTrade = {
   gates: {
     balanceValid:false, marketDataFresh:false, noActiveIncident:true,
     runtimeClean:true, regimeAcceptable:true, profitabilityGreen:false,
-    killSwitchOff:true, stressTestPassed:true, concurrencyOk:true, deployModeAllows:false,
+    killSwitchOff:true, stressTestPassed:true, concurrencyOk:true, tierDailyDD:true, deployModeAllows:false,
   },
 
   refresh() {
@@ -3264,7 +3265,11 @@ const NoTrade = {
     this.gates.killSwitchOff     = !KillSwitch.active && KillSwitch.mode==='NORMAL';
     this.gates.noActiveIncident  = !Incidents.hasCritical();
     this.gates.runtimeClean      = Incidents.pressureScore() < 0.5;
-    this.gates.concurrencyOk     = DB.getActiveTrades.all().length < Math.min(CFG.MAX_OPEN_TRADES, RiskLadder.maxTrades());
+    const _effOpen = (typeof RiskTier!=='undefined' && RiskTier.dryRun && RiskTier.dryRun.active && RiskTier.dryRun.simulatedOpenPositions>0)
+      ? RiskTier.dryRun.simulatedOpenPositions
+      : DB.getActiveTrades.all().length;
+    this.gates.concurrencyOk     = _effOpen < Math.min(CFG.MAX_OPEN_TRADES, RiskLadder.maxTrades(), (typeof RiskTier!=='undefined'?RiskTier.maxPositions():Infinity));
+    this.gates.tierDailyDD       = (typeof RiskTier!=='undefined') ? RiskTier.checkDailyDD() : true;
     // Demo Engine darf auch im PAPER Modus traden
     this.gates.deployModeAllows  = !DemoEngine.liveMode || ['DRY_LIVE','LIVE_RESTRICTED','LIVE_FULL'].includes(CFG.DEPLOY_MODE);
     this.gates.regimeAcceptable  = !['EXTREME_BEAR','FLASH_CRASH'].includes(Regime.regime);
@@ -3850,6 +3855,123 @@ const StaleOrderCleaner = {
 
 
 // ═════════════════════════════════════════════════════════════════════════════
+// ═════════════════════════════════════════════════════════════════════════════
+// RISK TIER — Stufenweiser LIVE-Einstieg (SaintQuant-inspired).
+// Inaktiv in DEMO (normale Demo-Statistik) -- wirkt nur in LIVE oder DryRun.
+// Drei Tiers: SAFE -> STANDARD -> AGGRESSIVE mit auto-Promotion.
+// ═════════════════════════════════════════════════════════════════════════════
+const RiskTier = {
+  TIERS: {
+    TIER_SAFE: {
+      label: 'SAFE', minSize: 5, maxSize: 20,
+      maxDailyDDPct: 0.02, maxConcurrentPos: 2,
+      promotionTrades: 50, promotionWinRate: 0.50,
+    },
+    TIER_STANDARD: {
+      label: 'STANDARD', minSize: 10, maxSize: 50,
+      maxDailyDDPct: 0.04, maxConcurrentPos: 4,
+      promotionTrades: 100, promotionWinRate: 0.55,
+    },
+    TIER_AGGRESSIVE: {
+      label: 'AGGRESSIVE', minSize: 20, maxSize: 200,
+      maxDailyDDPct: 0.07, maxConcurrentPos: 6,
+      promotionTrades: Infinity, promotionWinRate: 1.0,
+    },
+  },
+  current: 'TIER_SAFE',
+  history: [],
+  dryRun: { active:false, simulatedDailyLoss:0, simulatedOpenPositions:0, log:[] },
+
+  activeTier() { return this.TIERS[this.current] || this.TIERS.TIER_SAFE; },
+  shouldApply() { return (DemoEngine && DemoEngine.liveMode) || this.dryRun.active; },
+
+  maxPositions() {
+    if (!this.shouldApply()) return Infinity;
+    return this.activeTier().maxConcurrentPos;
+  },
+
+  checkDailyDD() {
+    if (!this.shouldApply()) return true;
+    const t = this.activeTier();
+    const startCap = (DemoEngine.wallet && DemoEngine.wallet.startTotal) || 1000;
+    const dailyPnl = this.dryRun.active ? -this.dryRun.simulatedDailyLoss : ((DemoEngine.wallet && DemoEngine.wallet.dailyPnl) || 0);
+    const ddPct = dailyPnl / startCap;
+    const ok = ddPct > -t.maxDailyDDPct;
+    if (!ok && this.dryRun.active) this.dryRun.log.push({ t:Date.now(), event:'DD_BLOCK', ddPct, limit:-t.maxDailyDDPct });
+    return ok;
+  },
+
+  capSize(proposedSize) {
+    if (!this.shouldApply()) return proposedSize;
+    const t = this.activeTier();
+    const capped = Math.max(t.minSize, Math.min(proposedSize, t.maxSize));
+    if (capped !== proposedSize) {
+      try { Log.info('RISKTIER','Size '+proposedSize.toFixed(2)+' -> '+capped.toFixed(2)+' ('+t.label+')'); } catch(_){}
+      try { ActionStream.push('INFO','RISKTIER','Size capped '+proposedSize.toFixed(2)+' -> '+capped.toFixed(2)+' ['+t.label+']', {from:proposedSize,to:capped,tier:t.label}); } catch(_){}
+      if (this.dryRun.active) this.dryRun.log.push({ t:Date.now(), event:'SIZE_CAP', from:proposedSize, to:capped });
+    }
+    return capped;
+  },
+
+  checkPromotion() {
+    const t = this.activeTier();
+    if (t.promotionTrades === Infinity) return { promoted:false, reason:'max tier', current:this.current };
+    const stats = (DemoEngine && DemoEngine.stats) || { trades:0, wins:0 };
+    const wr = stats.trades > 0 ? (stats.wins || 0) / stats.trades : 0;
+    if (stats.trades >= t.promotionTrades && wr >= t.promotionWinRate) {
+      const nextMap = { TIER_SAFE:'TIER_STANDARD', TIER_STANDARD:'TIER_AGGRESSIVE' };
+      const next = nextMap[this.current];
+      if (next) {
+        this.history.push({ ts:Date.now(), from:this.current, to:next, trades:stats.trades, wr });
+        this.current = next;
+        try { Log.info('RISKTIER','Promoted '+this.current+' (trades='+stats.trades+', WR='+(wr*100).toFixed(1)+'%)'); } catch(_){}
+        try { TelegramBot.send('RiskTier UPGRADE: '+this.current+' (trades='+stats.trades+', WR='+(wr*100).toFixed(1)+'%)'); } catch(_){}
+        return { promoted:true, to:next, trades:stats.trades, wr };
+      }
+    }
+    return { promoted:false, current:this.current, trades:stats.trades, wr, required:t.promotionTrades, requiredWR:t.promotionWinRate };
+  },
+
+  setTier(name) {
+    if (!this.TIERS[name]) return { error:'unknown tier: '+name+' (must be TIER_SAFE/TIER_STANDARD/TIER_AGGRESSIVE)' };
+    this.history.push({ ts:Date.now(), from:this.current, to:name, manual:true });
+    this.current = name;
+    return { ok:true, current:name };
+  },
+
+  snapshot() {
+    const t = this.activeTier();
+    return {
+      current: this.current, label: t.label, config: t,
+      shouldApply: this.shouldApply(),
+      mode: (DemoEngine && DemoEngine.liveMode) ? 'LIVE' : 'DEMO',
+      dryRun: this.dryRun.active ? {
+        active:true,
+        simulatedDailyLoss: this.dryRun.simulatedDailyLoss,
+        simulatedOpenPositions: this.dryRun.simulatedOpenPositions,
+        log: this.dryRun.log.slice(-30),
+      } : { active:false },
+      history: this.history.slice(-10),
+      tiers: Object.keys(this.TIERS),
+    };
+  },
+
+  enableDryRun(opts) {
+    opts = opts || {};
+    this.dryRun.active = true;
+    this.dryRun.simulatedDailyLoss = opts.simulatedDailyLoss || 0;
+    this.dryRun.simulatedOpenPositions = opts.simulatedOpenPositions || 0;
+    this.dryRun.log = [];
+    try { Log.info('RISKTIER','DryRun AKTIVIERT (simDailyLoss='+this.dryRun.simulatedDailyLoss+', simOpenPos='+this.dryRun.simulatedOpenPositions+')'); } catch(_){}
+    return this.snapshot();
+  },
+  disableDryRun() {
+    this.dryRun.active = false;
+    try { Log.info('RISKTIER','DryRun AUS'); } catch(_){}
+    return this.snapshot();
+  },
+};
+
 // WALLET PROVIDER — Single Source of Truth fuer Kapital.
 // DEMO: virtuelles Kapital (DemoEngine.wallet).
 // LIVE: echtes Bitget-Konto (Balance.usable, read-only).
@@ -3869,11 +3991,16 @@ const WalletProvider = {
   },
 
   trading() {
+    let raw;
     if (this._mode() === 'DEMO') {
-      return (DemoEngine.wallet && DemoEngine.wallet.trading) || 0;
+      raw = (DemoEngine.wallet && DemoEngine.wallet.trading) || 0;
+    } else {
+      raw = (typeof Balance !== 'undefined' && Balance.usable) || 0;
     }
-    // LIVE: kein Reserve-Konzept, usable ist das handelbare Kapital
-    return (typeof Balance !== 'undefined' && Balance.usable) || 0;
+    if (CFG.TRADING_BUDGET_USDT != null && CFG.TRADING_BUDGET_USDT > 0) {
+      return Math.min(raw, CFG.TRADING_BUDGET_USDT);
+    }
+    return raw;
   },
 
   reserve() {
@@ -7317,6 +7444,33 @@ app.get('/api/analysis/signals', (req,res) => {
 // StaleOrderCleaner Diagnose
 app.get('/api/stale/snapshot', (req,res) => res.json(StaleOrderCleaner.snapshot()));
 app.post('/api/stale/run', async (req,res) => res.json(await StaleOrderCleaner.run()));
+
+// Trading-Budget API
+app.get('/api/budget/snapshot', (req,res) => {
+  res.json({
+    budget: CFG.TRADING_BUDGET_USDT,
+    mode: DemoEngine.liveMode ? 'LIVE' : 'DEMO',
+    rawCapital: DemoEngine.liveMode ? (Balance.usable||0) : (DemoEngine.wallet?.trading||0),
+    effectiveCapital: WalletProvider.trading(),
+  });
+});
+app.post('/api/budget/set', (req,res) => {
+  const b = req.body && req.body.budget;
+  if (b === null || b === undefined) { CFG.TRADING_BUDGET_USDT = null; return res.json({ ok:true, budget:null }); }
+  const n = parseFloat(b);
+  if (isNaN(n) || n <= 0) return res.status(400).json({ error:'budget muss >0 oder null sein' });
+  CFG.TRADING_BUDGET_USDT = n;
+  try { Log.info('BUDGET','Trading-Budget: '+n+' USDT'); } catch(_){}
+  try { ActionStream.push('INFO','BUDGET','Trading-Budget = '+n+' USDT',{budget:n}); } catch(_){}
+  res.json({ ok:true, budget:n, effectiveCapital: WalletProvider.trading() });
+});
+
+// RiskTier API
+app.get('/api/risktier/snapshot', (req,res) => res.json(RiskTier.snapshot()));
+app.post('/api/risktier/set', (req,res) => res.json(RiskTier.setTier(req.body && req.body.tier)));
+app.post('/api/risktier/promote-check', (req,res) => res.json(RiskTier.checkPromotion()));
+app.post('/api/risktier/dryrun/enable', (req,res) => res.json(RiskTier.enableDryRun(req.body||{})));
+app.post('/api/risktier/dryrun/disable', (req,res) => res.json(RiskTier.disableDryRun()));
 
 // WalletProvider Diagnose
 app.get('/api/wallet/snapshot', (req,res) => res.json(WalletProvider.snapshot()));
@@ -10924,9 +11078,10 @@ const DemoEngine = {
     const price  = ticker?.last || 0;
     if (!price) return;
 
-    // Positionsgroesse: UnifiedScore oder Fallback
-    let size = overrideSize || this.wallet.trading * Math.min(0.25, 0.02 + strength * 0.13);
-    size = Math.max(5, Math.min(size, this.wallet.trading * 0.40));
+    // Positionsgroesse: UnifiedScore oder Fallback (Budget-aware via WalletProvider)
+    const _capital = WalletProvider.trading();
+    let size = overrideSize || _capital * Math.min(0.25, 0.02 + strength * 0.13);
+    size = Math.max(5, Math.min(size, _capital * 0.40));
 
     // Phase 3.4: Volatility-Adjusted Position Sizing
     // Bei hoher Vola kleinere Size, bei niedriger groessere (SaintQuant)
@@ -10953,6 +11108,9 @@ const DemoEngine = {
         }
       }
     } catch(e) { try{Log.warn('DEMO','vola-sizing err: '+e.message);}catch(_){} }
+
+    // Phase 3.6: RiskTier Size-Cap (wirkt nur in LIVE oder DryRun)
+    try { size = RiskTier.capSize(size); } catch(e) { try{Log.warn('DEMO','risktier cap err: '+e.message);}catch(_){} }
 
     // === PHASE 2.3: Fill via ExecutionAdapter (DEMO + LIVE Konvergenz) ===
     const fillResult = await ExecutionAdapter.placeOrder(symbol, direction, size, price, { source:'DemoEngine' });
