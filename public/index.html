@@ -904,11 +904,17 @@ fetch('http://100.67.6.22:3000/api/status').then(r=>r.json()).then(d=>{
     <div class="split-bar-x" style="margin-top:8px"><div class="split-s" id="split-s" style="width:70%"></div><div class="split-r" style="width:30%"></div></div>
   </div>
   <div class="card">
-    <div class="ct">KAPITAL EINTRAGEN — FREI WÄHLBAR</div>
-    <div class="fg"><label class="fl">HANDELSKAPITAL (USDT)</label><input class="fi" type="number" id="manCap" placeholder="z.B. 100"></div>
-    <div class="fg"><label class="fl">SPLIT SAFE % (0 = alles handelbar)</label><input class="fi" type="number" id="manSplit" placeholder="0" value="0"></div>
-    <div class="fg"><label class="fl">GEWINN BUCHEN (USDT)</label><input class="fi" type="number" id="manProfit"></div>
-    <div class="g2" style="gap:6px;margin-top:8px"><button class="btn btn-blue" onclick="setCapital()">SETZEN</button><button class="btn btn-buy" onclick="addProfit()">+ GEWINN</button></div>
+    <input type="hidden" id="manSplit" value="0">
+    <input type="hidden" id="manProfit" value="0">
+    <div class="ct">💰 STARTKAPITAL FESTLEGEN</div>
+    <div class="ibanner">Trage ein wieviel der Bot verwalten darf. Gewinne werden automatisch nach 70/30 aufgeteilt (70% Safe, 30% reinvest).</div>
+    <div class="fg">
+      <label class="fl">STARTKAPITAL (USDT)</label>
+      <input class="fi" type="number" id="manCap" placeholder="z.B. 100" step="any">
+    </div>
+    <div style="margin-top:10px">
+      <button class="btn btn-blue" onclick="setCapitalSimple()" style="width:100%">ÜBERNEHMEN</button>
+    </div>
   </div>
   <div class="card">
     <div class="ct">⚡ LIVE BALANCE (Bitget)</div>
@@ -3152,6 +3158,15 @@ function updateStreakUI(){
 
 // KAPITAL
 function updPosSize(){const re=S.capital.reinvest||0,max=re*S.settings.maxPos/100;document.getElementById('pos-kap').textContent=(re||0).toFixed(2)+' USDT';document.getElementById('pos-max').textContent=(max||0).toFixed(2)+' USDT';if(!document.getElementById('pos-rec').textContent.includes('V9'))document.getElementById('pos-rec').textContent=(max*.5).toFixed(2)+' USDT';}
+function setCapitalSimple(){
+  const cap = parseFloat(document.getElementById('manCap').value);
+  if (!cap || cap <= 0) { alert('Bitte gültiges Startkapital eintragen'); return; }
+  const splitEl = document.getElementById('manSplit');
+  if (splitEl) splitEl.value = 0;
+  setCapital();
+  try { log('OK','Startkapital gesetzt: '+cap+' USDT'); } catch(_){}
+}
+
 function setCapital(){
   const t=parseFloat(document.getElementById('manCap').value);if(!t)return;
   const splitPct=parseFloat(document.getElementById('manSplit').value)||0;
