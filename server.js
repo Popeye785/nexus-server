@@ -10731,10 +10731,16 @@ const DemoEngine = {
     let size = overrideSize || this.wallet.trading * Math.min(0.25, 0.02 + strength * 0.13);
     size = Math.max(5, Math.min(size, this.wallet.trading * 0.40));
 
-    // Slippage simulieren
-    const atr      = Ind.atr(candles) || price*0.01;
-    const slippage = 0.0002 + (atr/price)*0.1; // 0.02-0.1%
-    const fillPrice= direction==='BUY' ? price*(1+slippage) : price*(1-slippage);
+    // === PHASE 2.3: Fill via ExecutionAdapter (DEMO + LIVE Konvergenz) ===
+    const fillResult = await ExecutionAdapter.placeOrder(symbol, direction, size, price, { source:'DemoEngine' });
+    if (!fillResult || !fillResult.ok) {
+      try { Log.warn('DEMO','Adapter-Fill fehlgeschlagen: '+(fillResult && fillResult.error)); } catch(_){}
+      return;
+    }
+    const fillPrice = fillResult.fillPrice;
+    const slippage = fillResult.slippagePct;
+    if (fillResult.partialFill) { size = fillResult.sizeUSDT; }
+    const atr = Ind.atr(candles) || price*0.01;
 
     // Adaptive SL/TP
     const sltp     = AdaptiveSLTP.calculate(candles, fillPrice, direction.toLowerCase());
