@@ -2482,7 +2482,14 @@ async function loadV9Status(){
     S.proxyOk=true;
     try {
       const td = await apiV9('/api/trades');
-      const active = td.active || [];
+      const liveData = await apiV9('/api/demo/live').catch(()=>({positions:[]}));
+      const liveMap = {};
+      (liveData.positions||[]).forEach(p => { liveMap[p.symbol] = p; });
+      const active = (td.active || []).map(t => {
+        const lp = liveMap[t.symbol];
+        if (lp) { t.unrealizedPnl = lp.unrealizedPnl; t.livePrice = lp.livePrice; t.pnlPct = lp.pnlPct; }
+        return t;
+      });
       // Positions Dot + Count updaten
       const dot = document.getElementById('pos-dot');
       const cnt = document.getElementById('pos-count');
