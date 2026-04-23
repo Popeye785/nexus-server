@@ -3752,7 +3752,7 @@ const StaleOrderCleaner = {
   maxAgeHours: null, // wird aus CFG geladen
   cleaned: [],
 
-  run() {
+  async run() {
     const maxAge = (CFG.MAX_HOLD_HOURS || 48) * 3600000;
     const now = Date.now();
     let count = 0;
@@ -3762,36 +3762,64 @@ const StaleOrderCleaner = {
       for (const trade of active) {
         const age = now - (trade.created_at || 0);
         const ageH = (age / 3600000).toFixed(1);
+        let doClose = null; // 'STALE_CLEANUP_TIME' | 'STALE_ORPHAN' | null
 
-        // 1. Zu alt (ueber MAX_HOLD_HOURS)
-        if (age > maxAge) {
-          try {
-            DB.updateTrade.run('CLOSED', 0, 0, 'STALE_CLEANUP_TIME', now, now, trade.id);
-            this.cleaned.unshift({ ts: now, id: trade.id, symbol: trade.symbol, reason: 'STALE_TIME', age: ageH + 'h' });
-            count++;
-            Log.warn('STALE', 'Trade ' + trade.symbol + ' geschlossen — ' + ageH + 'h alt (max ' + CFG.MAX_HOLD_HOURS + 'h)');
-          } catch(e){ try{Log.warn('StaleOrderCleaner','err: '+e.message);}catch(_){} }
-          continue;
-        }
-
-        // 2. Orphan: DEMO_UNIFIED Trade aber nicht in DemoEngine.positions
-        if (trade.strategy === 'DEMO_UNIFIED') {
+        if (age > maxAge) doClose = 'STALE_CLEANUP_TIME';
+        else if (trade.strategy === 'DEMO_UNIFIED') {
           const inMemory = Object.values(DemoEngine.positions || {}).some(p => p.dbTradeId === trade.id);
-          if (!inMemory && age > 600000) { // 10min Toleranz nach Restart
-            try {
-              DB.updateTrade.run('CLOSED', 0, 0, 'STALE_ORPHAN', now, now, trade.id);
-              this.cleaned.unshift({ ts: now, id: trade.id, symbol: trade.symbol, reason: 'ORPHAN', age: ageH + 'h' });
-              count++;
-              Log.warn('STALE', 'Orphan Trade ' + trade.symbol + ' geschlossen — nicht in DemoEngine');
-            } catch(e){ try{Log.warn('StaleOrderCleaner','err: '+e.message);}catch(_){} }
-          }
+          if (!inMemory && age > 600000) doClose = 'STALE_ORPHAN';
         }
+        if (!doClose) continue;
+
+        try {
+          // --- Echten Schluss-Preis holen (statt 0) ---
+          let exitPrice = 0;
+          try {
+            const ticker = Bitget.priceCache && Bitget.priceCache[trade.symbol];
+            if (ticker && ticker.last > 0) exitPrice = ticker.last;
+            else {
+              const t2 = await Bitget.fetchTicker(trade.symbol).catch(() => null);
+              if (t2 && t2.last > 0) exitPrice = t2.last;
+            }
+          } catch(_){}
+          if (!exitPrice && trade.entry_price) exitPrice = trade.entry_price; // Fallback: PnL=0
+
+          // --- Echten PnL berechnen ---
+          const entry = trade.entry_price || 0;
+          const size  = trade.size || 0;
+          const dir   = (trade.side === 'sell' || trade.side === 'SELL') ? -1 : 1;
+          const gross = entry > 0 ? (dir * (exitPrice - entry) / entry) * size : 0;
+          const fees  = size * (CFG.MAKER_FEE + CFG.TAKER_FEE);
+          const pnl   = gross - fees;
+
+          // --- DB-Eintrag mit echten Werten ---
+          DB.updateTrade.run('CLOSED', exitPrice, pnl, doClose, now, now, trade.id);
+
+          // --- DEMO-Pfad: Wallet korrekt zurueckbuchen ---
+          if (trade.strategy === 'DEMO_UNIFIED' && !DemoEngine.liveMode) {
+            try {
+              WalletProvider.credit(size);
+              WalletProvider.applyPnL(pnl);
+              // In-memory Position auch schliessen falls noch vorhanden
+              for (const [pid, pos] of Object.entries(DemoEngine.positions||{})) {
+                if (pos.dbTradeId === trade.id) { delete DemoEngine.positions[pid]; break; }
+              }
+            } catch(e){ try{Log.warn('STALE','wallet buchen err: '+e.message);}catch(_){} }
+          }
+
+          // --- ExitEngine aufraeumen ---
+          try { ExitEngine.cleanup(trade.id); } catch(_){}
+
+          this.cleaned.unshift({ ts: now, id: trade.id, symbol: trade.symbol, reason: doClose, age: ageH + 'h', exitPrice, pnl });
+          count++;
+          Log.warn('STALE', 'Trade '+trade.symbol+' geschlossen ('+doClose+') age='+ageH+'h exit='+exitPrice.toFixed(4)+' pnl='+pnl.toFixed(4));
+
+          // --- Live-Feed ---
+          try { ActionStream.push('EXIT', trade.symbol, doClose+' (cleaner) PnL='+pnl.toFixed(4)+' USDT', { reason:doClose, pnl, exitPrice, cleaner:true }); } catch(_){}
+        } catch(e){ try{Log.warn('StaleOrderCleaner','close err: '+e.message);}catch(_){} }
       }
 
-      if (count > 0) {
-        TelegramBot.send('🧹 Stale Cleaner: ' + count + ' haengende Trades bereinigt');
-      }
-
+      if (count > 0) TelegramBot.send('🧹 Stale Cleaner: '+count+' haengende Trades bereinigt (mit echten Preisen)');
       if (this.cleaned.length > 50) this.cleaned = this.cleaned.slice(0, 50);
     } catch (e) {
       Log.warn('STALE', 'Cleaner Fehler: ' + e.message);
@@ -7199,6 +7227,10 @@ app.post('/api/profitoptimizer/recalc', (req,res) => res.json(ProfitOptimizer.ca
 
 app.get('/api/stale/snapshot',(req,res)=>res.json(StaleOrderCleaner.snapshot()));
 app.post('/api/stale/run',(req,res)=>res.json(StaleOrderCleaner.run()));
+
+// StaleOrderCleaner Diagnose
+app.get('/api/stale/snapshot', (req,res) => res.json(StaleOrderCleaner.snapshot()));
+app.post('/api/stale/run', async (req,res) => res.json(await StaleOrderCleaner.run()));
 
 // WalletProvider Diagnose
 app.get('/api/wallet/snapshot', (req,res) => res.json(WalletProvider.snapshot()));
