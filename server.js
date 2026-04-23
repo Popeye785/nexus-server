@@ -3827,6 +3827,107 @@ const StaleOrderCleaner = {
 
 
 // ═════════════════════════════════════════════════════════════════════════════
+// WALLET PROVIDER — Single Source of Truth fuer Kapital.
+// DEMO: virtuelles Kapital (DemoEngine.wallet).
+// LIVE: echtes Bitget-Konto (Balance.usable, read-only).
+// Zweck: kein Code soll jemals wieder direkt wallet.trading mutieren.
+// ═════════════════════════════════════════════════════════════════════════════
+const WalletProvider = {
+  _mode() {
+    return (DemoEngine && DemoEngine.liveMode) ? 'LIVE' : 'DEMO';
+  },
+
+  // ── Lesen ──
+  total() {
+    if (this._mode() === 'DEMO') {
+      return (DemoEngine.wallet && DemoEngine.wallet.total) || 0;
+    }
+    return (typeof Balance !== 'undefined' && Balance.usable) || 0;
+  },
+
+  trading() {
+    if (this._mode() === 'DEMO') {
+      return (DemoEngine.wallet && DemoEngine.wallet.trading) || 0;
+    }
+    // LIVE: kein Reserve-Konzept, usable ist das handelbare Kapital
+    return (typeof Balance !== 'undefined' && Balance.usable) || 0;
+  },
+
+  reserve() {
+    if (this._mode() === 'DEMO') {
+      return (DemoEngine.wallet && DemoEngine.wallet.reserve) || 0;
+    }
+    return 0; // LIVE: keine virtuelle Reserve
+  },
+
+  // ── Schreiben (nur DEMO, LIVE ist read-only) ──
+  debit(amount) {
+    if (this._mode() === 'LIVE') {
+      // LIVE-Wallet wird ueber echte Bitget-Orders bewegt, nicht manuell
+      return { ok:false, reason:'LIVE_READONLY' };
+    }
+    if (!DemoEngine.wallet) return { ok:false, reason:'NO_WALLET' };
+    DemoEngine.wallet.trading = Math.max(0, DemoEngine.wallet.trading - amount);
+    DemoEngine.wallet.total = DemoEngine.wallet.reserve + DemoEngine.wallet.trading;
+    try { DemoEngine._persistWallet(); } catch(_) {}
+    return { ok:true, mode:'DEMO', newTrading: DemoEngine.wallet.trading };
+  },
+
+  credit(amount) {
+    if (this._mode() === 'LIVE') return { ok:false, reason:'LIVE_READONLY' };
+    if (!DemoEngine.wallet) return { ok:false, reason:'NO_WALLET' };
+    const cap = DemoEngine.wallet.startTotal || 1000;
+    DemoEngine.wallet.trading = Math.min(cap, DemoEngine.wallet.trading + amount);
+    DemoEngine.wallet.total = DemoEngine.wallet.reserve + DemoEngine.wallet.trading;
+    try { DemoEngine._persistWallet(); } catch(_) {}
+    return { ok:true, mode:'DEMO', newTrading: DemoEngine.wallet.trading };
+  },
+
+  // ── PnL anwenden (70/30-Split bei Gewinn, voller Abzug bei Verlust) ──
+  applyPnL(pnl) {
+    if (this._mode() === 'LIVE') return { ok:false, reason:'LIVE_READONLY' };
+    if (!DemoEngine.wallet) return { ok:false, reason:'NO_WALLET' };
+    const w = DemoEngine.wallet;
+    if (pnl > 0) {
+      const toReserve = pnl * 0.70;
+      const toTrading = pnl * 0.30;
+      w.reserve = (w.reserve||0) + toReserve;
+      w.trading = (w.trading||0) + toTrading;
+    } else {
+      w.trading = Math.max(0, (w.trading||0) + pnl);
+    }
+    w.pnl      = (w.pnl||0) + pnl;
+    w.dailyPnl = (w.dailyPnl||0) + pnl;
+    w.total    = w.reserve + w.trading;
+    if (w.total > (w.peakTotal||0)) w.peakTotal = w.total;
+    try { DemoEngine._persistWallet(); } catch(_) {}
+    return { ok:true, mode:'DEMO', pnl, newTotal: w.total };
+  },
+
+  // ── Diagnose ──
+  snapshot() {
+    return {
+      mode: this._mode(),
+      total:   this.total(),
+      trading: this.trading(),
+      reserve: this.reserve(),
+      demoWallet: (this._mode()==='DEMO' && DemoEngine.wallet) ? {
+        total: DemoEngine.wallet.total,
+        trading: DemoEngine.wallet.trading,
+        reserve: DemoEngine.wallet.reserve,
+        pnl: DemoEngine.wallet.pnl,
+        dailyPnl: DemoEngine.wallet.dailyPnl,
+        peakTotal: DemoEngine.wallet.peakTotal,
+      } : null,
+      liveBalance: (this._mode()==='LIVE' && typeof Balance!=='undefined') ? {
+        usable: Balance.usable,
+        total: Balance.total,
+      } : null,
+    };
+  },
+};
+
+// ═════════════════════════════════════════════════════════════════════════════
 // EXECUTION ADAPTER — Einziger Unterschied zwischen DEMO und LIVE.
 // DEMO: Realistische Fill-Simulation mit Live-Orderbook.
 // LIVE: Echter Bitget-API-Call.
@@ -7106,6 +7207,9 @@ app.post('/api/profitoptimizer/recalc', (req,res) => res.json(ProfitOptimizer.ca
 
 app.get('/api/stale/snapshot',(req,res)=>res.json(StaleOrderCleaner.snapshot()));
 app.post('/api/stale/run',(req,res)=>res.json(StaleOrderCleaner.run()));
+
+// WalletProvider Diagnose
+app.get('/api/wallet/snapshot', (req,res) => res.json(WalletProvider.snapshot()));
 
 // ExecutionAdapter Diagnose
 app.get('/api/adapter/snapshot', (req,res) => res.json(ExecutionAdapter.snapshot()));
