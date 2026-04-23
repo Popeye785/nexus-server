@@ -91,8 +91,8 @@ const CFG = {
   // Exit
   ATR_STOP_MULT:         1.5,
   ATR_TP_MULT:           3.0,
-  TRAILING_PCT:          0.015,
-  MAX_HOLD_HOURS:        12,
+  TRAILING_PCT:          0.020,
+  MAX_HOLD_HOURS:        24,
 
   // Stress
   STRESS_SURVIVAL_MIN:   0.60,
@@ -10160,8 +10160,8 @@ const DemoEngine = {
   running:       false,
   startCapital:  1000,    // Virtuelles Startkapital in USDT
   symbols:       ['BTCUSDT','ETHUSDT','SOLUSDT'],
-  granularity:   '15m',
-  intervalMs:    60000,  // Jede Minute scannen
+  granularity:   '1h',
+  intervalMs:    120000, // Alle 2min scannen
   timer:         null,
 
   // Virtuelles Wallet (komplett unabhängig von echtem Balance)
@@ -10312,6 +10312,7 @@ const DemoEngine = {
         Log.warn('DEMO', `Scan Fehler ${symbol}: ${e.message}`);
       }
     }
+    this._cycleBusy = false;
   },
 
   // ── TRADE AUSFÜHREN ──────────────────────────────────────────────────────
@@ -10359,7 +10360,6 @@ const DemoEngine = {
     Log.info('DEMO', `TRADE: ${direction} ${symbol} ${size.toFixed(2)}USDT @ ${fillPrice.toFixed(4)} [${sigStr}]`);
     this.signals.unshift({ ts:Date.now(), symbol, direction, price:fillPrice, strength, signals:sigStr });
     if (this.signals.length > 50) this.signals.pop();
-    this._cycleBusy = false;
   },
 
   // ── EXITS PRÜFEN ─────────────────────────────────────────────────────────
