@@ -6372,6 +6372,21 @@ app.post('/api/mode/toggle', (req,res) => {
   res.json(result);
 });
 
+// Atomic switch with deploy mode update
+app.post('/api/mode/switch', (req,res) => {
+  const { target, force } = req.body || {};
+  if (!['DEMO','LIVE'].includes(target)) return res.status(400).json({ error:'target muss DEMO oder LIVE sein' });
+  let result;
+  if (target === 'LIVE') {
+    result = DemoEngine.switchToLive({ force: !!force });
+    if (result.ok) CFG.DEPLOY_MODE = 'LIVE_FULL';
+  } else {
+    result = DemoEngine.switchToDemo();
+    if (result.ok) CFG.DEPLOY_MODE = 'PAPER';
+  }
+  res.json(result);
+});
+
 // Demo-Wallet Info
 app.get('/api/demo/balance', (req,res) => res.json(DemoEngine.wallet));
 app.post('/api/demo/reset',  (req,res) => {
@@ -10250,14 +10265,28 @@ const DemoEngine = {
   // ML/RL Gewichte bleiben erhalten – Bot lernt in Demo weiter
   liveMode: false,   // false = Demo, true = Live
 
-  switchToLive() {
+  switchToLive(opts) {
+    opts = opts || {};
     if (!CFG.API_KEY) return { error: 'Kein API Key – Live nicht möglich. Bitte in .env eintragen.' };
+    // Pre-Switch-Guard: offene Demo-Positionen?
+    const openPos = Object.keys(this.positions||{}).length;
+    if (openPos > 0 && !opts.force) {
+      return { error: 'Demo hat '+openPos+' offene Positionen. Erst schliessen oder force=true.', openPositions: openPos };
+    }
+    // LIVE-Ready-Check (Soft-Gate, nur Warnung wenn nicht erfuellt)
+    const s = this.stats || {};
+    const total = (s.wins||0) + (s.losses||0);
+    const winRate = total > 0 ? s.wins/total : 0;
+    const readiness = { trades: total, winRate: winRate, ready: (total >= 50 && winRate >= 0.52) };
+    if (!readiness.ready && !opts.force) {
+      return { error: 'LIVE-Ready nicht erfuellt (Trades='+total+'/50, WR='+(winRate*100).toFixed(1)+'%/52%). Mit force=true ueberschreibbar.', readiness };
+    }
     this.liveMode   = true;
     CFG.DEPLOY_MODE = 'LIVE_RESTRICTED';
     NoTrade.gates.deployModeAllows = true;
-    Log.warn('DEMO', 'Auf LIVE umgeschaltet – echte Trades!');
-    TelegramBot.send('🟢 LIVE-MODUS aktiviert!\nEchte Trades auf Bitget.\nML hat ' + RLAgent.episodes + ' Episoden gelernt.');
-    return { ok: true, mode: 'LIVE', warning: 'Echte Orders werden ausgeführt!' };
+    Log.warn('DEMO', 'Auf LIVE umgeschaltet - echte Trades! (force='+!!opts.force+')');
+    TelegramBot.send('LIVE-MODUS aktiviert! Echte Trades auf Bitget. ML hat ' + RLAgent.episodes + ' Episoden gelernt. Force=' + !!opts.force);
+    return { ok: true, mode: 'LIVE', warning: 'Echte Orders werden ausgefuehrt!', readiness };
   },
 
   switchToDemo() {

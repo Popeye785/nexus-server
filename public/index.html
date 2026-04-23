@@ -2522,9 +2522,13 @@ return '<div style="padding:4px 0;border-bottom:1px solid rgba(255,255,255,.05)"
 
 async function loadV9Balance(){
   try{
-    // Demo vs Live
-    const status = await apiV9('/api/status').catch(()=>null);
-    const isDemo = status?.deployMode==='PAPER' || status?.mode==='DEMO';
+    // Demo vs Live - robust gegen /api/status null
+    let status = await apiV9('/api/status').catch(()=>null);
+    if (!status || (!status.deployMode && !status.mode)) {
+      const m = await apiV9('/api/mode').catch(()=>null);
+      status = { deployMode: m?.deployMode, mode: m?.mode };
+    }
+    const isDemo = status?.deployMode==='PAPER' || status?.mode==='DEMO' || (!status?.deployMode && !status?.mode);
     window._nexusDemoMode = isDemo;
     let total=0, safe=0, reinv=0, pnlBase=0;
     if (isDemo) {
@@ -4090,30 +4094,7 @@ function updateModeUI(mode) {
   }
 }
 
-async function toggleDemoLive() {
-  const mode = document.getElementById('hdrMode').textContent.trim();
-  if (mode === 'DEMO') {
-    if (!confirm('Auf LIVE umschalten? Der Bot handelt dann mit echtem Geld!')) return;
-    try {
-      await apiV9('/api/mode/live', 'POST');
-      await apiV9('/api/deploy', 'POST', { mode: 'LIVE_FULL' });
-      document.getElementById('hdrMode').textContent = 'LIVE';
-      document.getElementById('hdrMode').className = 'hdr-mode live';
-      log('OK', 'Auf LIVE umgeschaltet');
-      loadV9Balance();
-    } catch(e) { log('ERR', 'Live-Switch Fehler: '+e.message); }
-  } else {
-    if (!confirm('Auf DEMO umschalten?')) return;
-    try {
-      await apiV9('/api/mode/demo', 'POST');
-      await apiV9('/api/deploy', 'POST', { mode: 'PAPER' });
-      document.getElementById('hdrMode').textContent = 'DEMO';
-      document.getElementById('hdrMode').className = 'hdr-mode demo';
-      log('OK', 'Auf DEMO umgeschaltet');
-      loadV9Balance();
-    } catch(e) { log('ERR', 'Demo-Switch Fehler: '+e.message); }
-  }
-}
+// Tote Version entfernt in Phase 1.6 - aktive Version steht weiter unten
 
 async function toggleMasterMode() {
   const newMode = _currentMode === 'AUTONOMOUS' ? 'MANUAL' : 'AUTONOMOUS';
@@ -5171,16 +5152,20 @@ function updateModeSwitchUI(isLive, data) {
 async function toggleDemoLive() {
   const going = _isLiveMode ? 'DEMO' : 'LIVE';
   if (going === 'LIVE') {
-    const conf = confirm('LIVE-MODUS AKTIVIEREN?\n\nEchte Orders auf Bitget werden ausgeführt.\nEchtes Geld wird gehandelt.\n\nFortfahren?');
+    const conf = confirm('LIVE-MODUS AKTIVIEREN?\n\nEchte Orders auf Bitget werden ausgeführt.\nEchtes Geld (56.71 USDT auf Bitget) wird gehandelt.\n\nFortfahren?');
     if (!conf) return;
-    const d = await apiV9('/api/mode/live', 'POST');
-    if (d.error) { alert('Fehler: '+d.error); return; }
-    await apiV9('/api/deploy', 'POST', { mode: 'LIVE_FULL' });
-    alert('LIVE-MODUS aktiviert!');
+    let d = await apiV9('/api/mode/switch', 'POST', { target:'LIVE' });
+    if (d.error) {
+      // Wenn Pre-Gate blockiert: Force-Option anbieten
+      const forceMsg = d.error + '\n\nMit FORCE trotzdem auf LIVE? (nicht empfohlen)';
+      if (!confirm(forceMsg)) { alert('LIVE-Switch abgebrochen.'); return; }
+      d = await apiV9('/api/mode/switch', 'POST', { target:'LIVE', force:true });
+      if (d.error) { alert('Fehler auch mit force: '+d.error); return; }
+    }
+    alert('LIVE-MODUS aktiviert!\nReadiness: '+JSON.stringify(d.readiness||{}));
   } else {
-    const d = await apiV9('/api/mode/demo', 'POST');
+    const d = await apiV9('/api/mode/switch', 'POST', { target:'DEMO' });
     if (d.error) { alert('Fehler: '+d.error); return; }
-    await apiV9('/api/deploy', 'POST', { mode: 'PAPER' });
   }
   await loadModeStatus();
   loadV9Balance();
