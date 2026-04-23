@@ -10928,6 +10928,32 @@ const DemoEngine = {
     let size = overrideSize || this.wallet.trading * Math.min(0.25, 0.02 + strength * 0.13);
     size = Math.max(5, Math.min(size, this.wallet.trading * 0.40));
 
+    // Phase 3.4: Volatility-Adjusted Position Sizing
+    // Bei hoher Vola kleinere Size, bei niedriger groessere (SaintQuant)
+    try {
+      const ticker = Bitget.priceCache[symbol];
+      const curPrice = ticker && ticker.last;
+      const curATR = Ind.atr(candles);
+      if (curPrice > 0 && curATR > 0) {
+        const atrPct = curATR / curPrice;
+        let volaMult = 1.0;
+        let volaLabel = 'NORMAL';
+        if      (atrPct < 0.005) { volaMult = 1.20; volaLabel = 'LOW';     }
+        else if (atrPct < 0.015) { volaMult = 1.00; volaLabel = 'NORMAL';  }
+        else if (atrPct < 0.030) { volaMult = 0.75; volaLabel = 'HIGH';    }
+        else                     { volaMult = 0.50; volaLabel = 'EXTREME'; }
+        const sizeBefore = size;
+        size = Math.max(5, size * volaMult);
+        // Log + Stream nur wenn Vola nicht NORMAL ist (sonst zu spammy)
+        if (volaMult !== 1.0) {
+          try {
+            Log.info('SIZING', symbol+' vola='+volaLabel+' atr='+(atrPct*100).toFixed(2)+'% size '+sizeBefore.toFixed(2)+' -> '+size.toFixed(2)+' (x'+volaMult+')');
+            ActionStream.push('INFO', symbol, 'Vola '+volaLabel+' atr='+(atrPct*100).toFixed(2)+'% size x'+volaMult, { volaLabel, volaMult, atrPct });
+          } catch(_){}
+        }
+      }
+    } catch(e) { try{Log.warn('DEMO','vola-sizing err: '+e.message);}catch(_){} }
+
     // === PHASE 2.3: Fill via ExecutionAdapter (DEMO + LIVE Konvergenz) ===
     const fillResult = await ExecutionAdapter.placeOrder(symbol, direction, size, price, { source:'DemoEngine' });
     if (!fillResult || !fillResult.ok) {
@@ -12474,19 +12500,55 @@ async function boot() {
   process.on('SIGTERM', () => { MLPersist.onShutdown(); process.exit(0); });
   process.on('SIGINT',  () => { MLPersist.onShutdown(); process.exit(0); });
 
-  // Zombie-Trades aufraemen
-  try {
-    const zombies = Trades.getActive().filter(t => t.strategy === 'DEMO_UNIFIED');
-    if (zombies.length > 0) {
-      zombies.forEach(t => { try { DB.updateTrade.run('CLOSED', 0, 0, 'BOOT_CLEANUP', Date.now(), Date.now(), t.id); } catch(_) {} });
-      Log.boot('Zombie-Cleanup: ' + zombies.length + ' alte DEMO_UNIFIED Trades geschlossen');
-    }
-  } catch(_) {}
-
+  // Phase 3.5: Wallet ZUERST laden, dann Zombie-Cleanup mit Wallet-Rueckbuchung
   try {
     if (DemoEngine._loadWallet()) Log.boot('Wallet geladen: T='+DemoEngine.wallet.total.toFixed(2));
     else Log.boot('Wallet: Neustart');
   } catch(_) { Log.boot('Wallet: Neustart'); }
+
+  // Zombie-Trades: echter Preis + Wallet zurueck (gleiche Logik wie StaleOrderCleaner)
+  try {
+    const zombies = Trades.getActive().filter(t => t.strategy === 'DEMO_UNIFIED');
+    if (zombies.length > 0) {
+      (async () => {
+        let totalCredited = 0;
+        for (const t of zombies) {
+          try {
+            // Echten Preis holen
+            let exitPrice = 0;
+            try {
+              const ticker = Bitget.priceCache && Bitget.priceCache[t.symbol];
+              if (ticker && ticker.last > 0) exitPrice = ticker.last;
+              else {
+                const t2 = await Bitget.fetchTicker(t.symbol).catch(() => null);
+                if (t2 && t2.last > 0) exitPrice = t2.last;
+              }
+            } catch(_){}
+            if (!exitPrice && t.entry_price) exitPrice = t.entry_price;
+
+            const entry = t.entry_price || 0;
+            const size  = t.size || 0;
+            const dir   = (t.side === 'sell') ? -1 : 1;
+            const gross = entry > 0 ? (dir * (exitPrice - entry) / entry) * size : 0;
+            const fees  = size * (CFG.MAKER_FEE + CFG.TAKER_FEE);
+            const pnl   = gross - fees;
+
+            DB.updateTrade.run('CLOSED', exitPrice, pnl, 'BOOT_CLEANUP', Date.now(), Date.now(), t.id);
+
+            // Wallet korrekt zurueckbuchen
+            try {
+              WalletProvider.credit(size);
+              WalletProvider.applyPnL(pnl);
+              totalCredited += size;
+            } catch(e){ try{Log.warn('BOOT','wallet credit err: '+e.message);}catch(_){} }
+
+            Log.boot('Zombie-Close '+t.symbol+' size='+size.toFixed(2)+' exit='+exitPrice.toFixed(4)+' pnl='+pnl.toFixed(4));
+          } catch(e){ try{Log.warn('BOOT','zombie err: '+e.message);}catch(_){} }
+        }
+        Log.boot('Zombie-Cleanup: '+zombies.length+' Trades geschlossen, '+totalCredited.toFixed(2)+' USDT zurueckgebucht');
+      })();
+    }
+  } catch(_) {}
 
   // Auto-Start DemoEngine im PAPER Modus
   if (CFG.DEPLOY_MODE === 'PAPER' || !CFG.API_KEY) {
