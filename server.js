@@ -5015,9 +5015,13 @@ const AutoEngine = {
           }
         } catch(_) {}
       }
-      if (!['HALTED','EXIT_ONLY'].includes(KillSwitch.mode)) {
-        await this._scanSignals();
-      }
+      // Phase 3.8b: AutoEngine._scanSignals deaktiviert
+      // Grund: doppelte Scans zu DemoEngine -> konkurrierende Trades.
+      // Hygiene bleibt aktiv (Balance, KillSwitch, Exits, VaR, WalletTracker).
+      // Fuer Re-Aktivierung siehe Git-History Phase 3.8b.
+      // if (!['HALTED','EXIT_ONLY'].includes(KillSwitch.mode)) {
+      //   await this._scanSignals();
+      // }
     } catch(e) {
       this.stats.errors++;
       this._log(`Cycle error: ${e.message}`, 'ERROR');
