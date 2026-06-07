@@ -1,0 +1,1492 @@
+{
+  "full": {
+    "startEquity": 1000,
+    "finalEquity": 826.0358973767106,
+    "totalReturn": -0.17396410262328937,
+    "totalReturnPct": -17.39641026232894,
+    "trades": 2406,
+    "wins": 787,
+    "losses": 1619,
+    "winRate": 0.32709891936824603,
+    "winRatePct": 32.709891936824604,
+    "profitFactor": 0.8866948939449704,
+    "sharpe": -4.334600621686017,
+    "maxDD": 0.18440647659075918,
+    "maxDDPct": 18.440647659075918,
+    "avgPnL": -0.07230428205456761,
+    "grossWin": 1361.395676650909,
+    "grossLoss": 1535.3597792741991,
+    "tradesList": [
+      {
+        "symbol": "BTCUSDT",
+        "side": "BUY",
+        "entryPrice": 8734.876626,
+        "exitPrice": 9084.27169104,
+        "size": 50,
+        "netPnl": 1.9400000000000013,
+        "exitReason": "TP",
+        "entryIdx": 69,
+        "exitIdx": 104,
+        "holdHours": 35,
+        "family": "TREND"
+      },
+      {
+        "symbol": "BTCUSDT",
+        "side": "BUY",
+        "entryPrice": 9081.936024,
+        "exitPrice": 8900.297303520001,
+        "size": 50.09700000000001,
+        "netPnl": -1.0620563999999968,
+        "exitReason": "SL",
+        "entryIdx": 104,
+        "exitIdx": 160,
+        "holdHours": 56,
+        "family": "TREND"
+      },
+      {
+        "symbol": "BTCUSDT",
+        "side": "SELL",
+        "entryPrice": 8923.215,
+        "exitPrice": 8566.286399999999,
+        "size": 50.04389718000001,
+        "netPnl": 1.9417032105840064,
+        "exitReason": "TP",
+        "entryIdx": 160,
+        "exitIdx": 181,
+        "holdHours": 21,
+        "family": "TREND"
+      },
+      {
+        "symbol": "BTCUSDT",
+        "side": "SELL",
+        "entryPrice": 8574.83469,
+        "exitPrice": 8231.8413024,
+        "size": 50.140982340529206,
+        "netPnl": 1.9454701148125304,
+        "exitReason": "TP",
+        "entryIdx": 181,
+        "exitIdx": 183,
+        "holdHours": 2,
+        "family": "TREND"
+      },
+      {
+        "symbol": "BTCUSDT",
+        "side": "SELL",
+        "entryPrice": 8278.453978000001,
+        "exitPrice": 7947.315818880001,
+        "size": 50.23825584626983,
+        "netPnl": 1.949244326835273,
+        "exitReason": "TP",
+        "entryIdx": 183,
+        "exitIdx": 195,
+        "holdHours": 12,
+        "family": "TREND"
+      },
+      {
+        "symbol": "BTCUSDT",
+        "side": "SELL",
+        "entryPrice": 7849.749736,
+        "exitPrice": 8006.74473072,
+        "size": 50.3357180626116,
+        "netPnl": -1.0671172229273675,
+        "exitReason": "SL",
+        "entryIdx": 195,
+        "exitIdx": 225,
+        "holdHours": 30,
+        "family": "TREND"
+      },
+      {
+        "symbol": "BTCUSDT",
+        "side": "BUY",
+        "entryPrice": 8038.517382,
+        "exitPrice": 7877.74703436,
+        "size": 50.28236220146523,
+        "netPnl": -1.0659860786710642,
+        "exitReason": "SL",
+        "entryIdx": 225,
+        "exitIdx": 230,
+        "holdHours": 5,
+        "family": "TREND"
+      },
+      {
+        "symbol": "BTCUSDT",
+        "side": "SELL",
+        "entryPrice": 7765.726544,
+        "exitPrice": 7921.04107488,
+        "size": 50.229062897531676,
+        "netPnl": -1.0648561334276738,
+        "exitReason": "SL",
+        "entryIdx": 230,
+        "exitIdx": 234,
+        "holdHours": 4,
+        "family": "TREND"
+      },
+      {
+        "symbol": "BTCUSDT",
+        "side": "BUY",
+        "entryPrice": 7980.39576,
+        "exitPrice": 7820.7878448,
+        "size": 50.1758200908603,
+        "netPnl": -1.0637273859262397,
+        "exitReason": "SL",
+        "entryIdx": 234,
+        "exitIdx": 245,
+        "holdHours": 11,
+        "family": "TREND"
+      },
+      {
+        "symbol": "BTCUSDT",
+        "side": "SELL",
+        "entryPrice": 7815.416604,
+        "exitPrice": 7971.724936080001,
+        "size": 50.122633721563986,
+        "netPnl": -1.0625998348971601,
+        "exitReason": "SL",
+        "entryIdx": 248,
+        "exitIdx": 261,
+        "holdHours": 13,
+        "family": "TREND"
+      }
+    ],
+    "equityCurveLast": [
+      {
+        "idx": 53600,
+        "ts": 1776070800000,
+        "equity": 827.56954784715
+      },
+      {
+        "idx": 53700,
+        "ts": 1776430800000,
+        "equity": 829.1750327699735
+      },
+      {
+        "idx": 53800,
+        "ts": 1776790800000,
+        "equity": 829.9030016832737
+      },
+      {
+        "idx": 53900,
+        "ts": 1777150800000,
+        "equity": 829.0233045014893
+      },
+      {
+        "idx": 54000,
+        "ts": 1777510800000,
+        "equity": 826.3898038775495
+      }
+    ],
+    "options": {
+      "brainAuthority": false,
+      "sharpeSoftmax": false,
+      "adaptiveLR": false,
+      "scoreFloor": 0.04,
+      "slPct": 0.02,
+      "tpPct": 0.04,
+      "positionSize": 0.05
+    }
+  },
+  "phases": {
+    "2026": {
+      "startEquity": 1000,
+      "finalEquity": 994.0990187967453,
+      "totalReturn": -0.005900981203254673,
+      "totalReturnPct": -0.5900981203254673,
+      "trades": 91,
+      "wins": 30,
+      "losses": 61,
+      "winRate": 0.32967032967032966,
+      "winRatePct": 32.967032967032964,
+      "profitFactor": 0.9078923632396495,
+      "sharpe": -3.540183963204901,
+      "maxDD": 0.012034116279032713,
+      "maxDDPct": 1.2034116279032714,
+      "avgPnL": -0.06484594728851102,
+      "grossWin": 58.16516369858377,
+      "grossLoss": 64.06614490183827,
+      "tradesList": [
+        {
+          "symbol": "BTCUSDT",
+          "side": "BUY",
+          "entryPrice": 90057.137826,
+          "exitPrice": 93659.42333904,
+          "size": 50,
+          "netPnl": 1.939999999999999,
+          "exitReason": "TP",
+          "entryIdx": 60,
+          "exitIdx": 110,
+          "holdHours": 50,
+          "family": "TREND"
+        },
+        {
+          "symbol": "BTCUSDT",
+          "side": "BUY",
+          "entryPrice": 93446.6856,
+          "exitPrice": 91577.751888,
+          "size": 50.09700000000001,
+          "netPnl": -1.0620563999999992,
+          "exitReason": "SL",
+          "entryIdx": 110,
+          "exitIdx": 137,
+          "holdHours": 27,
+          "family": "TREND"
+        },
+        {
+          "symbol": "BTCUSDT",
+          "side": "SELL",
+          "entryPrice": 92486.81893600001,
+          "exitPrice": 94336.55531472001,
+          "size": 50.04389718000001,
+          "netPnl": -1.0609306202160007,
+          "exitReason": "SL",
+          "entryIdx": 140,
+          "exitIdx": 308,
+          "holdHours": 168,
+          "family": "TREND"
+        },
+        {
+          "symbol": "BTCUSDT",
+          "side": "BUY",
+          "entryPrice": 94427.58174,
+          "exitPrice": 92539.0301052,
+          "size": 49.99085064898921,
+          "netPnl": -1.0598060337585684,
+          "exitReason": "SL",
+          "entryIdx": 308,
+          "exitIdx": 432,
+          "holdHours": 124,
+          "family": "TREND"
+        },
+        {
+          "symbol": "BTCUSDT",
+          "side": "SELL",
+          "entryPrice": 92692.477796,
+          "exitPrice": 88984.77868416,
+          "size": 49.93786034730128,
+          "netPnl": 1.9375889814752918,
+          "exitReason": "TP",
+          "entryIdx": 432,
+          "exitIdx": 478,
+          "holdHours": 46,
+          "family": "TREND"
+        },
+        {
+          "symbol": "BTCUSDT",
+          "side": "SELL",
+          "entryPrice": 88491.478164,
+          "exitPrice": 90261.30772728,
+          "size": 50.03473979637505,
+          "netPnl": -1.060736483683151,
+          "exitReason": "SL",
+          "entryIdx": 478,
+          "exitIdx": 495,
+          "holdHours": 17,
+          "family": "TREND"
+        },
+        {
+          "symbol": "BTCUSDT",
+          "side": "BUY",
+          "entryPrice": 90306.097608,
+          "exitPrice": 88499.97565584,
+          "size": 49.981702972190895,
+          "netPnl": -1.0596121030104468,
+          "exitReason": "SL",
+          "entryIdx": 495,
+          "exitIdx": 496,
+          "holdHours": 1,
+          "family": "TREND"
+        },
+        {
+          "symbol": "BTCUSDT",
+          "side": "SELL",
+          "entryPrice": 87584.87952,
+          "exitPrice": 89336.5771104,
+          "size": 49.92872236704037,
+          "netPnl": -1.0584889141812555,
+          "exitReason": "SL",
+          "entryIdx": 496,
+          "exitIdx": 499,
+          "holdHours": 3,
+          "family": "TREND"
+        },
+        {
+          "symbol": "BTCUSDT",
+          "side": "BUY",
+          "entryPrice": 90232.05280199999,
+          "exitPrice": 88427.41174596,
+          "size": 49.87579792133131,
+          "netPnl": -1.0573669159322219,
+          "exitReason": "SL",
+          "entryIdx": 500,
+          "exitIdx": 584,
+          "holdHours": 84,
+          "family": "TREND"
+        },
+        {
+          "symbol": "BTCUSDT",
+          "side": "SELL",
+          "entryPrice": 88282.34999799999,
+          "exitPrice": 90047.99699796,
+          "size": 49.8229295755347,
+          "netPnl": -1.0562461070013405,
+          "exitReason": "SL",
+          "entryIdx": 584,
+          "exitIdx": 659,
+          "holdHours": 75,
+          "family": "TREND"
+        }
+      ],
+      "equityCurveLast": [
+        {
+          "idx": 2400,
+          "ts": 1775865600000,
+          "equity": 995.9447018144964
+        },
+        {
+          "idx": 2500,
+          "ts": 1776225600000,
+          "equity": 997.8768345360165
+        },
+        {
+          "idx": 2600,
+          "ts": 1776585600000,
+          "equity": 998.7529141164857
+        },
+        {
+          "idx": 2700,
+          "ts": 1776945600000,
+          "equity": 997.6942360275223
+        },
+        {
+          "idx": 2800,
+          "ts": 1777305600000,
+          "equity": 997.6942360275223
+        }
+      ],
+      "options": {
+        "brainAuthority": false,
+        "sharpeSoftmax": false,
+        "adaptiveLR": false,
+        "scoreFloor": 0.04,
+        "slPct": 0.02,
+        "tpPct": 0.04,
+        "positionSize": 0.05
+      }
+    },
+    "BULL_2020": {
+      "startEquity": 1000,
+      "finalEquity": 970.7376700489868,
+      "totalReturn": -0.029262329951013157,
+      "totalReturnPct": -2.9262329951013157,
+      "trades": 360,
+      "wins": 118,
+      "losses": 242,
+      "winRate": 0.3277777777777778,
+      "winRatePct": 32.77777777777778,
+      "profitFactor": 0.883591180088853,
+      "sharpe": -4.513999768514056,
+      "maxDD": 0.038421212530550926,
+      "maxDDPct": 3.8421212530550926,
+      "avgPnL": -0.08128424986392448,
+      "grossWin": 222.113209920866,
+      "grossLoss": 251.37553987187894,
+      "tradesList": [
+        {
+          "symbol": "BTCUSDT",
+          "side": "BUY",
+          "entryPrice": 8734.876626,
+          "exitPrice": 9084.27169104,
+          "size": 50,
+          "netPnl": 1.9400000000000013,
+          "exitReason": "TP",
+          "entryIdx": 69,
+          "exitIdx": 104,
+          "holdHours": 35,
+          "family": "TREND"
+        },
+        {
+          "symbol": "BTCUSDT",
+          "side": "BUY",
+          "entryPrice": 9081.936024,
+          "exitPrice": 8900.297303520001,
+          "size": 50.09700000000001,
+          "netPnl": -1.0620563999999968,
+          "exitReason": "SL",
+          "entryIdx": 104,
+          "exitIdx": 160,
+          "holdHours": 56,
+          "family": "TREND"
+        },
+        {
+          "symbol": "BTCUSDT",
+          "side": "SELL",
+          "entryPrice": 8923.215,
+          "exitPrice": 8566.286399999999,
+          "size": 50.04389718000001,
+          "netPnl": 1.9417032105840064,
+          "exitReason": "TP",
+          "entryIdx": 160,
+          "exitIdx": 181,
+          "holdHours": 21,
+          "family": "TREND"
+        },
+        {
+          "symbol": "BTCUSDT",
+          "side": "SELL",
+          "entryPrice": 8574.83469,
+          "exitPrice": 8231.8413024,
+          "size": 50.140982340529206,
+          "netPnl": 1.9454701148125304,
+          "exitReason": "TP",
+          "entryIdx": 181,
+          "exitIdx": 183,
+          "holdHours": 2,
+          "family": "TREND"
+        },
+        {
+          "symbol": "BTCUSDT",
+          "side": "SELL",
+          "entryPrice": 8278.453978000001,
+          "exitPrice": 7947.315818880001,
+          "size": 50.23825584626983,
+          "netPnl": 1.949244326835273,
+          "exitReason": "TP",
+          "entryIdx": 183,
+          "exitIdx": 195,
+          "holdHours": 12,
+          "family": "TREND"
+        },
+        {
+          "symbol": "BTCUSDT",
+          "side": "SELL",
+          "entryPrice": 7849.749736,
+          "exitPrice": 8006.74473072,
+          "size": 50.3357180626116,
+          "netPnl": -1.0671172229273675,
+          "exitReason": "SL",
+          "entryIdx": 195,
+          "exitIdx": 225,
+          "holdHours": 30,
+          "family": "TREND"
+        },
+        {
+          "symbol": "BTCUSDT",
+          "side": "BUY",
+          "entryPrice": 8038.517382,
+          "exitPrice": 7877.74703436,
+          "size": 50.28236220146523,
+          "netPnl": -1.0659860786710642,
+          "exitReason": "SL",
+          "entryIdx": 225,
+          "exitIdx": 230,
+          "holdHours": 5,
+          "family": "TREND"
+        },
+        {
+          "symbol": "BTCUSDT",
+          "side": "SELL",
+          "entryPrice": 7765.726544,
+          "exitPrice": 7921.04107488,
+          "size": 50.229062897531676,
+          "netPnl": -1.0648561334276738,
+          "exitReason": "SL",
+          "entryIdx": 230,
+          "exitIdx": 234,
+          "holdHours": 4,
+          "family": "TREND"
+        },
+        {
+          "symbol": "BTCUSDT",
+          "side": "BUY",
+          "entryPrice": 7980.39576,
+          "exitPrice": 7820.7878448,
+          "size": 50.1758200908603,
+          "netPnl": -1.0637273859262397,
+          "exitReason": "SL",
+          "entryIdx": 234,
+          "exitIdx": 245,
+          "holdHours": 11,
+          "family": "TREND"
+        },
+        {
+          "symbol": "BTCUSDT",
+          "side": "SELL",
+          "entryPrice": 7815.416604,
+          "exitPrice": 7971.724936080001,
+          "size": 50.122633721563986,
+          "netPnl": -1.0625998348971601,
+          "exitReason": "SL",
+          "entryIdx": 248,
+          "exitIdx": 261,
+          "holdHours": 13,
+          "family": "TREND"
+        }
+      ],
+      "equityCurveLast": [
+        {
+          "idx": 6900,
+          "ts": 1607886000000,
+          "equity": 969.7678406506355
+        },
+        {
+          "idx": 7000,
+          "ts": 1608246000000,
+          "equity": 975.0658992398196
+        },
+        {
+          "idx": 7100,
+          "ts": 1608616800000,
+          "equity": 973.8540941130768
+        },
+        {
+          "idx": 7200,
+          "ts": 1608980400000,
+          "equity": 972.4658138195481
+        },
+        {
+          "idx": 7300,
+          "ts": 1609340400000,
+          "equity": 970.7241552157478
+        }
+      ],
+      "options": {
+        "brainAuthority": false,
+        "sharpeSoftmax": false,
+        "adaptiveLR": false,
+        "scoreFloor": 0.04,
+        "slPct": 0.02,
+        "tpPct": 0.04,
+        "positionSize": 0.05
+      }
+    },
+    "BULL_2021": {
+      "startEquity": 1000,
+      "finalEquity": 890.3575361190531,
+      "totalReturn": -0.10964246388094694,
+      "totalReturnPct": -10.964246388094693,
+      "trades": 797,
+      "wins": 243,
+      "losses": 554,
+      "winRate": 0.30489335006273527,
+      "winRatePct": 30.489335006273528,
+      "profitFactor": 0.8031133462739042,
+      "sharpe": -8.15244560386664,
+      "maxDD": 0.1095596228717469,
+      "maxDDPct": 10.95596228717469,
+      "avgPnL": -0.13756896346417333,
+      "grossWin": 447.23867461144914,
+      "grossLoss": 556.8811384923954,
+      "tradesList": [
+        {
+          "symbol": "BTCUSDT",
+          "side": "BUY",
+          "entryPrice": 34110.540744,
+          "exitPrice": 33428.329929119995,
+          "size": 50,
+          "netPnl": -1.0600000000000052,
+          "exitReason": "SL",
+          "entryIdx": 60,
+          "exitIdx": 63,
+          "holdHours": 3,
+          "family": "TREND"
+        },
+        {
+          "symbol": "BTCUSDT",
+          "side": "BUY",
+          "entryPrice": 33513.321324000004,
+          "exitPrice": 32843.05489752,
+          "size": 49.947,
+          "netPnl": -1.0588764000000062,
+          "exitReason": "SL",
+          "entryIdx": 63,
+          "exitIdx": 64,
+          "holdHours": 1,
+          "family": "TREND"
+        },
+        {
+          "symbol": "BTCUSDT",
+          "side": "BUY",
+          "entryPrice": 33732.955241999996,
+          "exitPrice": 33058.296137159996,
+          "size": 49.89405618000001,
+          "netPnl": -1.057753991016001,
+          "exitReason": "SL",
+          "entryIdx": 68,
+          "exitIdx": 70,
+          "holdHours": 2,
+          "family": "TREND"
+        },
+        {
+          "symbol": "BTCUSDT",
+          "side": "SELL",
+          "entryPrice": 32993.44999,
+          "exitPrice": 31673.7119904,
+          "size": 49.8411684804492,
+          "netPnl": 1.9338373370414315,
+          "exitReason": "TP",
+          "entryIdx": 71,
+          "exitIdx": 79,
+          "holdHours": 8,
+          "family": "TREND"
+        },
+        {
+          "symbol": "BTCUSDT",
+          "side": "SELL",
+          "entryPrice": 31032.422274,
+          "exitPrice": 29791.12538304,
+          "size": 49.937860347301275,
+          "netPnl": 1.937588981475293,
+          "exitReason": "TP",
+          "entryIdx": 81,
+          "exitIdx": 82,
+          "holdHours": 1,
+          "family": "TREND"
+        },
+        {
+          "symbol": "BTCUSDT",
+          "side": "SELL",
+          "entryPrice": 30264.705847999998,
+          "exitPrice": 30869.99996496,
+          "size": 50.03473979637504,
+          "netPnl": -1.0607364836831537,
+          "exitReason": "SL",
+          "entryIdx": 82,
+          "exitIdx": 83,
+          "holdHours": 1,
+          "family": "TREND"
+        },
+        {
+          "symbol": "BTCUSDT",
+          "side": "SELL",
+          "entryPrice": 30736.911388,
+          "exitPrice": 31351.64961576,
+          "size": 49.98170297219089,
+          "netPnl": -1.0596121030104482,
+          "exitReason": "SL",
+          "entryIdx": 83,
+          "exitIdx": 84,
+          "holdHours": 1,
+          "family": "TREND"
+        },
+        {
+          "symbol": "BTCUSDT",
+          "side": "SELL",
+          "entryPrice": 31212.776196000003,
+          "exitPrice": 31837.031719920004,
+          "size": 49.928722367040365,
+          "netPnl": -1.0584889141812572,
+          "exitReason": "SL",
+          "entryIdx": 84,
+          "exitIdx": 86,
+          "holdHours": 2,
+          "family": "TREND"
+        },
+        {
+          "symbol": "BTCUSDT",
+          "side": "SELL",
+          "entryPrice": 32107.257264,
+          "exitPrice": 30822.966973439998,
+          "size": 49.875797921331305,
+          "netPnl": 1.9351809593476579,
+          "exitReason": "TP",
+          "entryIdx": 86,
+          "exitIdx": 88,
+          "holdHours": 2,
+          "family": "TREND"
+        },
+        {
+          "symbol": "BTCUSDT",
+          "side": "SELL",
+          "entryPrice": 31314.045938000003,
+          "exitPrice": 31940.326856760003,
+          "size": 49.97255696929869,
+          "netPnl": -1.0594182077491314,
+          "exitReason": "SL",
+          "entryIdx": 88,
+          "exitIdx": 95,
+          "holdHours": 7,
+          "family": "TREND"
+        }
+      ],
+      "equityCurveLast": [
+        {
+          "idx": 8300,
+          "ts": 1639386000000,
+          "equity": 895.6663517903025
+        },
+        {
+          "idx": 8400,
+          "ts": 1639746000000,
+          "equity": 891.7115589122935
+        },
+        {
+          "idx": 8500,
+          "ts": 1640106000000,
+          "equity": 890.4403771282531
+        },
+        {
+          "idx": 8600,
+          "ts": 1640466000000,
+          "equity": 892.167831459882
+        },
+        {
+          "idx": 8700,
+          "ts": 1640826000000,
+          "equity": 892.7877060358276
+        }
+      ],
+      "options": {
+        "brainAuthority": false,
+        "sharpeSoftmax": false,
+        "adaptiveLR": false,
+        "scoreFloor": 0.04,
+        "slPct": 0.02,
+        "tpPct": 0.04,
+        "positionSize": 0.05
+      }
+    },
+    "BEAR_2022": {
+      "startEquity": 1000,
+      "finalEquity": 999.5032605998441,
+      "totalReturn": -0.0004967394001558887,
+      "totalReturnPct": -0.04967394001558887,
+      "trades": 398,
+      "wins": 141,
+      "losses": 257,
+      "winRate": 0.3542713567839196,
+      "winRatePct": 35.427135678391956,
+      "profitFactor": 0.9981846755583678,
+      "sharpe": -0.012143717593295675,
+      "maxDD": 0.02506343353654183,
+      "maxDDPct": 2.506343353654183,
+      "avgPnL": -0.001248088945114955,
+      "grossWin": 273.1399663940232,
+      "grossLoss": 273.6367057941791,
+      "tradesList": [
+        {
+          "symbol": "BTCUSDT",
+          "side": "SELL",
+          "entryPrice": 46684.11131,
+          "exitPrice": 44816.746857599996,
+          "size": 50,
+          "netPnl": 1.9400000000000048,
+          "exitReason": "TP",
+          "entryIdx": 63,
+          "exitIdx": 115,
+          "holdHours": 52,
+          "family": "TREND"
+        },
+        {
+          "symbol": "BTCUSDT",
+          "side": "SELL",
+          "entryPrice": 44676.992814000005,
+          "exitPrice": 42889.913101440005,
+          "size": 50.09700000000001,
+          "netPnl": 1.9437636000000005,
+          "exitReason": "TP",
+          "entryIdx": 115,
+          "exitIdx": 118,
+          "holdHours": 3,
+          "family": "TREND"
+        },
+        {
+          "symbol": "BTCUSDT",
+          "side": "SELL",
+          "entryPrice": 43428.362590000004,
+          "exitPrice": 41691.228086400006,
+          "size": 50.194188180000005,
+          "netPnl": 1.9475345013839982,
+          "exitReason": "TP",
+          "entryIdx": 118,
+          "exitIdx": 147,
+          "holdHours": 29,
+          "family": "TREND"
+        },
+        {
+          "symbol": "BTCUSDT",
+          "side": "SELL",
+          "entryPrice": 41794.749378,
+          "exitPrice": 42630.64436556,
+          "size": 50.29156490506921,
+          "netPnl": -1.0661811759874686,
+          "exitReason": "SL",
+          "entryIdx": 147,
+          "exitIdx": 152,
+          "holdHours": 5,
+          "family": "TREND"
+        },
+        {
+          "symbol": "BTCUSDT",
+          "side": "SELL",
+          "entryPrice": 42080.192278,
+          "exitPrice": 40396.984586880004,
+          "size": 50.23825584626983,
+          "netPnl": 1.9492443268352673,
+          "exitReason": "TP",
+          "entryIdx": 152,
+          "exitIdx": 230,
+          "holdHours": 78,
+          "family": "TREND"
+        },
+        {
+          "symbol": "BTCUSDT",
+          "side": "SELL",
+          "entryPrice": 40778.412686,
+          "exitPrice": 41593.98093972,
+          "size": 50.3357180626116,
+          "netPnl": -1.0671172229273624,
+          "exitReason": "SL",
+          "entryIdx": 230,
+          "exitIdx": 232,
+          "holdHours": 2,
+          "family": "TREND"
+        },
+        {
+          "symbol": "BTCUSDT",
+          "side": "SELL",
+          "entryPrice": 41176.21311,
+          "exitPrice": 41999.7373722,
+          "size": 50.28236220146523,
+          "netPnl": -1.0659860786710638,
+          "exitReason": "SL",
+          "entryIdx": 233,
+          "exitIdx": 241,
+          "holdHours": 8,
+          "family": "TREND"
+        },
+        {
+          "symbol": "BTCUSDT",
+          "side": "BUY",
+          "entryPrice": 42182.204754,
+          "exitPrice": 41338.560658919996,
+          "size": 50.229062897531676,
+          "netPnl": -1.0648561334276745,
+          "exitReason": "SL",
+          "entryIdx": 242,
+          "exitIdx": 254,
+          "holdHours": 12,
+          "family": "TREND"
+        },
+        {
+          "symbol": "BTCUSDT",
+          "side": "BUY",
+          "entryPrice": 41742.276786,
+          "exitPrice": 43411.96785744,
+          "size": 50.1758200908603,
+          "netPnl": 1.9468218195253797,
+          "exitReason": "TP",
+          "entryIdx": 255,
+          "exitIdx": 275,
+          "holdHours": 20,
+          "family": "TREND"
+        },
+        {
+          "symbol": "BTCUSDT",
+          "side": "BUY",
+          "entryPrice": 42944.507183999995,
+          "exitPrice": 42085.617040319994,
+          "size": 50.27316118183657,
+          "netPnl": -1.065791017054936,
+          "exitReason": "SL",
+          "entryIdx": 275,
+          "exitIdx": 322,
+          "holdHours": 47,
+          "family": "TREND"
+        }
+      ],
+      "equityCurveLast": [
+        {
+          "idx": 8300,
+          "ts": 1670875200000,
+          "equity": 995.9648874945441
+        },
+        {
+          "idx": 8400,
+          "ts": 1671235200000,
+          "equity": 998.7731567130215
+        },
+        {
+          "idx": 8500,
+          "ts": 1671595200000,
+          "equity": 998.7731567130215
+        },
+        {
+          "idx": 8600,
+          "ts": 1671955200000,
+          "equity": 998.7731567130215
+        },
+        {
+          "idx": 8700,
+          "ts": 1672315200000,
+          "equity": 998.7731567130215
+        }
+      ],
+      "options": {
+        "brainAuthority": false,
+        "sharpeSoftmax": false,
+        "adaptiveLR": false,
+        "scoreFloor": 0.04,
+        "slPct": 0.02,
+        "tpPct": 0.04,
+        "positionSize": 0.05
+      }
+    },
+    "RECOVERY_2023": {
+      "startEquity": 1000,
+      "finalEquity": 997.8401047820473,
+      "totalReturn": -0.0021598952179526804,
+      "totalReturnPct": -0.21598952179526804,
+      "trades": 196,
+      "wins": 69,
+      "losses": 127,
+      "winRate": 0.3520408163265306,
+      "winRatePct": 35.204081632653065,
+      "profitFactor": 0.9839773837602224,
+      "sharpe": -0.5457326968563154,
+      "maxDD": 0.02149275993928826,
+      "maxDDPct": 2.1492759939288257,
+      "avgPnL": -0.011019873560988052,
+      "grossWin": 132.64300997748506,
+      "grossLoss": 134.8029051954387,
+      "tradesList": [
+        {
+          "symbol": "BTCUSDT",
+          "side": "BUY",
+          "entryPrice": 16714.19217,
+          "exitPrice": 17382.7598568,
+          "size": 50,
+          "netPnl": 1.940000000000003,
+          "exitReason": "TP",
+          "entryIdx": 60,
+          "exitIdx": 210,
+          "holdHours": 150,
+          "family": "TREND"
+        },
+        {
+          "symbol": "BTCUSDT",
+          "side": "BUY",
+          "entryPrice": 17354.180141999997,
+          "exitPrice": 18048.34734768,
+          "size": 50.09700000000001,
+          "netPnl": 1.9437636000000054,
+          "exitReason": "TP",
+          "entryIdx": 210,
+          "exitIdx": 264,
+          "holdHours": 54,
+          "family": "TREND"
+        },
+        {
+          "symbol": "BTCUSDT",
+          "side": "BUY",
+          "entryPrice": 18267.752819999998,
+          "exitPrice": 17902.397763599998,
+          "size": 50.194188180000005,
+          "netPnl": -1.0641167894159995,
+          "exitReason": "SL",
+          "entryIdx": 264,
+          "exitIdx": 277,
+          "holdHours": 13,
+          "family": "TREND"
+        },
+        {
+          "symbol": "BTCUSDT",
+          "side": "BUY",
+          "entryPrice": 18288.566982,
+          "exitPrice": 19020.10966128,
+          "size": 50.140982340529206,
+          "netPnl": 1.9454701148125304,
+          "exitReason": "TP",
+          "entryIdx": 277,
+          "exitIdx": 283,
+          "holdHours": 6,
+          "family": "TREND"
+        },
+        {
+          "symbol": "BTCUSDT",
+          "side": "BUY",
+          "entryPrice": 18889.12707,
+          "exitPrice": 19644.6921528,
+          "size": 50.23825584626983,
+          "netPnl": 1.949244326835269,
+          "exitReason": "TP",
+          "entryIdx": 283,
+          "exitIdx": 309,
+          "holdHours": 26,
+          "family": "TREND"
+        },
+        {
+          "symbol": "BTCUSDT",
+          "side": "BUY",
+          "entryPrice": 19820.773362,
+          "exitPrice": 20613.60429648,
+          "size": 50.3357180626116,
+          "netPnl": 1.95302586082933,
+          "exitReason": "TP",
+          "entryIdx": 309,
+          "exitIdx": 312,
+          "holdHours": 3,
+          "family": "TREND"
+        },
+        {
+          "symbol": "BTCUSDT",
+          "side": "BUY",
+          "entryPrice": 20895.848334,
+          "exitPrice": 20477.931367319998,
+          "size": 50.43336935565307,
+          "netPnl": -1.069187430339847,
+          "exitReason": "SL",
+          "entryIdx": 312,
+          "exitIdx": 321,
+          "holdHours": 9,
+          "family": "TREND"
+        },
+        {
+          "symbol": "BTCUSDT",
+          "side": "BUY",
+          "entryPrice": 20527.85475,
+          "exitPrice": 21348.96894,
+          "size": 50.37990998413608,
+          "netPnl": 1.9547405073844806,
+          "exitReason": "TP",
+          "entryIdx": 321,
+          "exitIdx": 362,
+          "holdHours": 41,
+          "family": "TREND"
+        },
+        {
+          "symbol": "BTCUSDT",
+          "side": "BUY",
+          "entryPrice": 21213.551862,
+          "exitPrice": 20789.28082476,
+          "size": 50.47764700950529,
+          "netPnl": -1.0701261166015115,
+          "exitReason": "SL",
+          "entryIdx": 362,
+          "exitIdx": 368,
+          "holdHours": 6,
+          "family": "TREND"
+        },
+        {
+          "symbol": "BTCUSDT",
+          "side": "SELL",
+          "entryPrice": 20743.550460000002,
+          "exitPrice": 21158.421469200002,
+          "size": 50.42414070367522,
+          "netPnl": -1.068991782917915,
+          "exitReason": "SL",
+          "entryIdx": 368,
+          "exitIdx": 377,
+          "holdHours": 9,
+          "family": "TREND"
+        }
+      ],
+      "equityCurveLast": [
+        {
+          "idx": 8300,
+          "ts": 1702414800000,
+          "equity": 1000.4656025133806
+        },
+        {
+          "idx": 8400,
+          "ts": 1702774800000,
+          "equity": 997.2874930752704
+        },
+        {
+          "idx": 8500,
+          "ts": 1703134800000,
+          "equity": 996.2303683326106
+        },
+        {
+          "idx": 8600,
+          "ts": 1703494800000,
+          "equity": 997.1050024086139
+        },
+        {
+          "idx": 8700,
+          "ts": 1703854800000,
+          "equity": 997.1050024086139
+        }
+      ],
+      "options": {
+        "brainAuthority": false,
+        "sharpeSoftmax": false,
+        "adaptiveLR": false,
+        "scoreFloor": 0.04,
+        "slPct": 0.02,
+        "tpPct": 0.04,
+        "positionSize": 0.05
+      }
+    },
+    "BULL_2024": {
+      "startEquity": 1000,
+      "finalEquity": 980.8782753575308,
+      "totalReturn": -0.01912172464246919,
+      "totalReturnPct": -1.912172464246919,
+      "trades": 325,
+      "wins": 109,
+      "losses": 216,
+      "winRate": 0.3353846153846154,
+      "winRatePct": 33.53846153846154,
+      "profitFactor": 0.9152588956575819,
+      "sharpe": -3.216164852231526,
+      "maxDD": 0.027667353351604675,
+      "maxDDPct": 2.7667353351604675,
+      "avgPnL": -0.058836075822985195,
+      "grossWin": 206.52702977078295,
+      "grossLoss": 225.6487544132531,
+      "tradesList": [
+        {
+          "symbol": "BTCUSDT",
+          "side": "SELL",
+          "entryPrice": 42780.822124,
+          "exitPrice": 43636.43856648,
+          "size": 50,
+          "netPnl": -1.0600000000000012,
+          "exitReason": "SL",
+          "entryIdx": 60,
+          "exitIdx": 86,
+          "holdHours": 26,
+          "family": "TREND"
+        },
+        {
+          "symbol": "BTCUSDT",
+          "side": "BUY",
+          "entryPrice": 43684.805214,
+          "exitPrice": 42811.10910972,
+          "size": 49.947,
+          "netPnl": -1.0588764000000035,
+          "exitReason": "SL",
+          "entryIdx": 86,
+          "exitIdx": 97,
+          "holdHours": 11,
+          "family": "TREND"
+        },
+        {
+          "symbol": "BTCUSDT",
+          "side": "SELL",
+          "entryPrice": 43367.3248,
+          "exitPrice": 44234.671296,
+          "size": 49.89405618000001,
+          "netPnl": -1.057753991015998,
+          "exitReason": "SL",
+          "entryIdx": 97,
+          "exitIdx": 105,
+          "holdHours": 8,
+          "family": "TREND"
+        },
+        {
+          "symbol": "BTCUSDT",
+          "side": "BUY",
+          "entryPrice": 44156.039442,
+          "exitPrice": 43272.91865316,
+          "size": 49.8411684804492,
+          "netPnl": -1.0566327717855255,
+          "exitReason": "SL",
+          "entryIdx": 105,
+          "exitIdx": 110,
+          "holdHours": 5,
+          "family": "TREND"
+        },
+        {
+          "symbol": "BTCUSDT",
+          "side": "SELL",
+          "entryPrice": 43477.342792,
+          "exitPrice": 44346.889647840006,
+          "size": 49.78833684185993,
+          "netPnl": -1.0555127410474334,
+          "exitReason": "SL",
+          "entryIdx": 110,
+          "exitIdx": 116,
+          "holdHours": 6,
+          "family": "TREND"
+        },
+        {
+          "symbol": "BTCUSDT",
+          "side": "BUY",
+          "entryPrice": 43963.861014,
+          "exitPrice": 45722.41545456,
+          "size": 49.73556120480756,
+          "netPnl": 1.9297397747465346,
+          "exitReason": "TP",
+          "entryIdx": 116,
+          "exitIdx": 186,
+          "holdHours": 70,
+          "family": "TREND"
+        },
+        {
+          "symbol": "BTCUSDT",
+          "side": "BUY",
+          "entryPrice": 46979.404002,
+          "exitPrice": 46039.815921960006,
+          "size": 49.832048193544885,
+          "netPnl": -1.0564394217031485,
+          "exitReason": "SL",
+          "entryIdx": 186,
+          "exitIdx": 204,
+          "holdHours": 18,
+          "family": "TREND"
+        },
+        {
+          "symbol": "BTCUSDT",
+          "side": "SELL",
+          "entryPrice": 46157.11673,
+          "exitPrice": 47080.2590646,
+          "size": 49.77922622245973,
+          "netPnl": -1.0553195959161472,
+          "exitReason": "SL",
+          "entryIdx": 204,
+          "exitIdx": 213,
+          "holdHours": 9,
+          "family": "TREND"
+        },
+        {
+          "symbol": "BTCUSDT",
+          "side": "SELL",
+          "entryPrice": 45430.352112,
+          "exitPrice": 46338.95915424,
+          "size": 49.72646024266392,
+          "netPnl": -1.054200957144476,
+          "exitReason": "SL",
+          "entryIdx": 213,
+          "exitIdx": 233,
+          "holdHours": 20,
+          "family": "TREND"
+        },
+        {
+          "symbol": "BTCUSDT",
+          "side": "SELL",
+          "entryPrice": 45936.8108,
+          "exitPrice": 46855.547016,
+          "size": 49.67375019480669,
+          "netPnl": -1.0530835041298992,
+          "exitReason": "SL",
+          "entryIdx": 237,
+          "exitIdx": 238,
+          "holdHours": 1,
+          "family": "TREND"
+        }
+      ],
+      "equityCurveLast": [
+        {
+          "idx": 8300,
+          "ts": 1733947200000,
+          "equity": 979.4270625201967
+        },
+        {
+          "idx": 8400,
+          "ts": 1734307200000,
+          "equity": 983.2309256944676
+        },
+        {
+          "idx": 8500,
+          "ts": 1734667200000,
+          "equity": 984.7778915986112
+        },
+        {
+          "idx": 8600,
+          "ts": 1735027200000,
+          "equity": 984.5976900266529
+        },
+        {
+          "idx": 8700,
+          "ts": 1735387200000,
+          "equity": 980.4296288952835
+        }
+      ],
+      "options": {
+        "brainAuthority": false,
+        "sharpeSoftmax": false,
+        "adaptiveLR": false,
+        "scoreFloor": 0.04,
+        "slPct": 0.02,
+        "tpPct": 0.04,
+        "positionSize": 0.05
+      }
+    },
+    "BULL_2025": {
+      "startEquity": 1000,
+      "finalEquity": 988.2231230662828,
+      "totalReturn": -0.011776876933717177,
+      "totalReturnPct": -1.1776876933717177,
+      "trades": 224,
+      "wins": 75,
+      "losses": 149,
+      "winRate": 0.33482142857142855,
+      "winRatePct": 33.482142857142854,
+      "profitFactor": 0.9244305377759123,
+      "sharpe": -2.853229090614862,
+      "maxDD": 0.02584564037967433,
+      "maxDDPct": 2.584564037967433,
+      "avgPnL": -0.05257534345409592,
+      "grossWin": 144.06486901910347,
+      "grossLoss": 155.84174595282104,
+      "tradesList": [
+        {
+          "symbol": "BTCUSDT",
+          "side": "BUY",
+          "entryPrice": 96685.993332,
+          "exitPrice": 100553.43306528,
+          "size": 50,
+          "netPnl": 1.94,
+          "exitReason": "TP",
+          "entryIdx": 60,
+          "exitIdx": 134,
+          "holdHours": 74,
+          "family": "TREND"
+        },
+        {
+          "symbol": "BTCUSDT",
+          "side": "BUY",
+          "entryPrice": 100757.177406,
+          "exitPrice": 98742.03385788,
+          "size": 50.09700000000001,
+          "netPnl": -1.0620564000000015,
+          "exitReason": "SL",
+          "entryIdx": 134,
+          "exitIdx": 159,
+          "holdHours": 25,
+          "family": "TREND"
+        },
+        {
+          "symbol": "BTCUSDT",
+          "side": "SELL",
+          "entryPrice": 97932.66954799999,
+          "exitPrice": 94015.36276607998,
+          "size": 50.04389718000001,
+          "netPnl": 1.9417032105840042,
+          "exitReason": "TP",
+          "entryIdx": 159,
+          "exitIdx": 185,
+          "holdHours": 26,
+          "family": "TREND"
+        },
+        {
+          "symbol": "BTCUSDT",
+          "side": "SELL",
+          "entryPrice": 94012.01383600001,
+          "exitPrice": 95892.25411272001,
+          "size": 50.140982340529206,
+          "netPnl": -1.0629888256192173,
+          "exitReason": "SL",
+          "entryIdx": 185,
+          "exitIdx": 288,
+          "holdHours": 103,
+          "family": "TREND"
+        },
+        {
+          "symbol": "BTCUSDT",
+          "side": "BUY",
+          "entryPrice": 95344.495086,
+          "exitPrice": 93437.60518428,
+          "size": 50.08783289924824,
+          "netPnl": -1.0618620574640638,
+          "exitReason": "SL",
+          "entryIdx": 288,
+          "exitIdx": 294,
+          "holdHours": 6,
+          "family": "TREND"
+        },
+        {
+          "symbol": "BTCUSDT",
+          "side": "SELL",
+          "entryPrice": 93618.642526,
+          "exitPrice": 89873.89682495999,
+          "size": 50.03473979637504,
+          "netPnl": 1.9413479040993573,
+          "exitReason": "TP",
+          "entryIdx": 294,
+          "exitIdx": 302,
+          "holdHours": 8,
+          "family": "TREND"
+        },
+        {
+          "symbol": "BTCUSDT",
+          "side": "SELL",
+          "entryPrice": 91814.663394,
+          "exitPrice": 93650.95666188,
+          "size": 50.13180719158001,
+          "netPnl": -1.0627943124614956,
+          "exitReason": "SL",
+          "entryIdx": 302,
+          "exitIdx": 308,
+          "holdHours": 6,
+          "family": "TREND"
+        },
+        {
+          "symbol": "BTCUSDT",
+          "side": "BUY",
+          "entryPrice": 94555.00722,
+          "exitPrice": 98337.2075088,
+          "size": 50.078667475956934,
+          "netPnl": 1.9430522980671283,
+          "exitReason": "TP",
+          "entryIdx": 311,
+          "exitIdx": 349,
+          "holdHours": 38,
+          "family": "TREND"
+        },
+        {
+          "symbol": "BTCUSDT",
+          "side": "BUY",
+          "entryPrice": 98983.7928,
+          "exitPrice": 102943.144512,
+          "size": 50.17582009086029,
+          "netPnl": 1.946821819525381,
+          "exitReason": "TP",
+          "entryIdx": 349,
+          "exitIdx": 396,
+          "holdHours": 47,
+          "family": "TREND"
+        },
+        {
+          "symbol": "BTCUSDT",
+          "side": "BUY",
+          "entryPrice": 102766.239138,
+          "exitPrice": 100710.91435524,
+          "size": 50.273161181836564,
+          "netPnl": -1.0657910170549345,
+          "exitReason": "SL",
+          "entryIdx": 396,
+          "exitIdx": 455,
+          "holdHours": 59,
+          "family": "TREND"
+        }
+      ],
+      "equityCurveLast": [
+        {
+          "idx": 8300,
+          "ts": 1765569600000,
+          "equity": 993.9003357643741
+        },
+        {
+          "idx": 8400,
+          "ts": 1765929600000,
+          "equity": 994.7729242031962
+        },
+        {
+          "idx": 8500,
+          "ts": 1766289600000,
+          "equity": 988.4629106311492
+        },
+        {
+          "idx": 8600,
+          "ts": 1766649600000,
+          "equity": 988.4629106311492
+        },
+        {
+          "idx": 8700,
+          "ts": 1767009600000,
+          "equity": 988.4629106311492
+        }
+      ],
+      "options": {
+        "brainAuthority": false,
+        "sharpeSoftmax": false,
+        "adaptiveLR": false,
+        "scoreFloor": 0.04,
+        "slPct": 0.02,
+        "tpPct": 0.04,
+        "positionSize": 0.05
+      }
+    }
+  }
+}

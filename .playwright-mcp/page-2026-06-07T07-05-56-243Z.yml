@@ -1,0 +1,316 @@
+- generic [active] [ref=e1]:
+  - text: e
+  - generic [ref=e2]:
+    - generic [ref=e3]:
+      - generic [ref=e4]:
+        - text: NEXUS
+        - emphasis [ref=e5]: BOT
+        - text: V9 ULTIMATE
+      - generic [ref=e6]:
+        - generic [ref=e7]:
+          - generic [ref=e8]: BTC/USDT
+          - generic [ref=e9]: —
+        - button "👤 MANUELL" [ref=e10] [cursor=pointer]
+        - button "🔵 DEMO" [ref=e11] [cursor=pointer]
+        - generic [ref=e13]: OFFLINE
+    - generic [ref=e15]:
+      - generic [ref=e16]:
+        - button "📊 MARKT" [ref=e17] [cursor=pointer]:
+          - generic [ref=e18]: 📊
+          - generic [ref=e19]: MARKT
+        - button "🐋 WHALE" [ref=e20] [cursor=pointer]:
+          - generic [ref=e21]: 🐋
+          - generic [ref=e22]: WHALE
+        - button "📈 CHART" [ref=e23] [cursor=pointer]:
+          - generic [ref=e24]: 📈
+          - generic [ref=e25]: CHART
+        - button "🔬 ANALYSE" [ref=e26] [cursor=pointer]:
+          - generic [ref=e27]: 🔬
+          - generic [ref=e28]: ANALYSE
+        - button "⚡ SIGNAL" [ref=e29] [cursor=pointer]:
+          - generic [ref=e30]: ⚡
+          - generic [ref=e31]: SIGNAL
+        - button "📖 ORDERS" [ref=e32] [cursor=pointer]:
+          - generic [ref=e33]: 📖
+          - generic [ref=e34]: ORDERS
+        - button "🧮 INDIKATOREN" [ref=e35] [cursor=pointer]:
+          - generic [ref=e36]: 🧮
+          - generic [ref=e37]: INDIKATOREN
+      - generic [ref=e38]:
+        - button "⚡ STATUS" [ref=e39] [cursor=pointer]:
+          - generic [ref=e40]: ⚡
+          - generic [ref=e41]: STATUS
+        - button "⚙️ BOTS" [ref=e42] [cursor=pointer]:
+          - generic [ref=e43]: ⚙️
+          - generic [ref=e44]: BOTS
+        - button "🪙 COINS" [ref=e45] [cursor=pointer]:
+          - generic [ref=e46]: 🪙
+          - generic [ref=e47]: COINS
+        - button "💰 KAPITAL" [ref=e48] [cursor=pointer]:
+          - generic [ref=e49]: 💰
+          - generic [ref=e50]: KAPITAL
+        - button "📰 NEWS" [ref=e51] [cursor=pointer]:
+          - generic [ref=e52]: 📰
+          - generic [ref=e53]: NEWS
+        - button "🧠 KI-DASH" [ref=e54] [cursor=pointer]:
+          - generic [ref=e55]: 🧠
+          - generic [ref=e56]: KI-DASH
+        - button "🔧 ARS" [ref=e57] [cursor=pointer]:
+          - generic [ref=e58]: 🔧
+          - generic [ref=e59]: ARS
+        - button "🛡 SICHERHEIT" [ref=e60] [cursor=pointer]:
+          - generic [ref=e61]: 🛡
+          - generic [ref=e62]: SICHERHEIT
+        - button "🧬 ML" [ref=e63] [cursor=pointer]:
+          - generic [ref=e64]: 🧬
+          - generic [ref=e65]: ML
+        - button "🛠 SYSTEM" [ref=e66] [cursor=pointer]:
+          - generic [ref=e67]: 🛠
+          - generic [ref=e68]: SYSTEM
+        - button "🔎 DIAGNOSE" [ref=e69] [cursor=pointer]:
+          - generic [ref=e70]: 🔎
+          - generic [ref=e71]: DIAGNOSE
+        - button "🌐 EXCHG" [ref=e72] [cursor=pointer]:
+          - generic [ref=e73]: 🌐
+          - generic [ref=e74]: EXCHG
+        - button "🧩 STRATBUILD" [ref=e75] [cursor=pointer]:
+          - generic [ref=e76]: 🧩
+          - generic [ref=e77]: STRATBUILD
+        - button "🔑 CONFIG" [ref=e78] [cursor=pointer]:
+          - generic [ref=e79]: 🔑
+          - generic [ref=e80]: CONFIG
+  - text: // // // // //
+  - generic [ref=e81]:
+    - generic [ref=e82]:
+      - generic [ref=e83]:
+        - generic [ref=e84]: — SYMBOL
+        - generic [ref=e85]: conf 0% · size 0% · regime —
+      - generic [ref=e86]:
+        - img
+        - generic [ref=e87]:
+          - generic [ref=e88]: DECISION
+          - generic [ref=e89]: HOLD
+          - generic [ref=e90]: 0%
+        - generic "Brain Core" [ref=e92]: 🧠
+        - generic [ref=e93]:
+          - generic [ref=e94] [cursor=pointer]:
+            - generic [ref=e96]: TR
+            - generic [ref=e97]: 0%
+          - generic [ref=e98] [cursor=pointer]:
+            - generic [ref=e100]: MO
+            - generic [ref=e101]: 0%
+          - generic [ref=e102] [cursor=pointer]:
+            - generic [ref=e104]: RI
+            - generic [ref=e105]: 0%
+          - generic [ref=e106] [cursor=pointer]:
+            - generic [ref=e108]: SE
+            - generic [ref=e109]: 0%
+          - generic [ref=e110] [cursor=pointer]:
+            - generic [ref=e112]: MI
+            - generic [ref=e113]: 0%
+      - generic [ref=e114]:
+        - generic [ref=e115]: 0BUY
+        - generic [ref=e116]: 0SELL
+        - generic [ref=e117]: 0HOLD
+      - generic [ref=e118]:
+        - generic [ref=e119]:
+          - generic [ref=e120]: BRAIN
+          - generic [ref=e121]: —
+        - generic [ref=e122]:
+          - generic [ref=e123]: UNIFIED
+          - generic [ref=e124]: —
+        - generic [ref=e125]:
+          - generic [ref=e126]: SYNC
+          - generic [ref=e127]: —
+      - generic [ref=e128]:
+        - generic [ref=e129]:
+          - generic [ref=e130] [cursor=pointer]: ▼ ALL SYMBOL STATUS
+          - generic [ref=e131] [cursor=pointer]: EINKLAPPEN
+        - generic [ref=e132]: 1 Kachel pro Coin · letzter Status · TRADING + ANALYSIS
+      - generic [ref=e134]: SHADOW
+    - generic [ref=e135]:
+      - generic [ref=e136]: // META-KI ENTSCHEIDUNG · V9 ULTIMATE
+      - generic [ref=e137]:
+        - generic [ref=e138]: WARTE
+        - generic [ref=e139]: Vollanalyse starten
+        - generic [ref=e140]: — — —
+      - generic [ref=e141]:
+        - generic [ref=e142] [cursor=pointer]:
+          - generic [ref=e143]: ANALYSE
+          - generic [ref=e144]: ⬜
+        - generic [ref=e145] [cursor=pointer]:
+          - generic [ref=e146]: REGIME
+          - generic [ref=e147]: ⬜
+        - generic [ref=e148] [cursor=pointer]:
+          - generic [ref=e149]: RISIKO
+          - generic [ref=e150]: ⬜
+        - generic [ref=e151] [cursor=pointer]:
+          - generic [ref=e152]: WHALE
+          - generic [ref=e153]: ⬜
+        - generic [ref=e154] [cursor=pointer]:
+          - generic [ref=e155]: SIGNAL
+          - generic [ref=e156]: ⬜
+        - generic [ref=e157] [cursor=pointer]:
+          - generic [ref=e158]: V9 GATES
+          - generic [ref=e159]: ⬜
+        - generic [ref=e160] [cursor=pointer]:
+          - generic [ref=e161]: NEWS
+          - generic [ref=e162]: ⬜
+        - generic [ref=e163] [cursor=pointer]:
+          - generic [ref=e164]: KILLSW
+          - generic [ref=e165]: ⬜
+      - button "▶ VOLLANALYSE STARTEN" [ref=e166] [cursor=pointer]
+    - generic [ref=e167]:
+      - generic [ref=e168]:
+        - text: //
+        - generic [ref=e169]: 15 SYSTEM-CHECKS · was der Bot vor jedem Trade prueft
+        - generic [ref=e170]: Lade...
+      - generic [ref=e171]:
+        - generic [ref=e172] [cursor=pointer]:
+          - generic [ref=e173]: ⬜
+          - generic [ref=e174]: MARKT
+        - generic [ref=e175] [cursor=pointer]:
+          - generic [ref=e176]: ⬜
+          - generic [ref=e177]: MODUS
+        - generic [ref=e178] [cursor=pointer]:
+          - generic [ref=e179]: ⬜
+          - generic [ref=e180]: BLACKLIST
+        - generic [ref=e181] [cursor=pointer]:
+          - generic [ref=e182]: ⬜
+          - generic [ref=e183]: KILL SW
+        - generic [ref=e184] [cursor=pointer]:
+          - generic [ref=e185]: ⬜
+          - generic [ref=e186]: NO-TRADE
+        - generic [ref=e187] [cursor=pointer]:
+          - generic [ref=e188]: ⬜
+          - generic [ref=e189]: DRAWDOWN
+        - generic [ref=e190] [cursor=pointer]:
+          - generic [ref=e191]: ⬜
+          - generic [ref=e192]: ANOMALIE
+        - generic [ref=e193] [cursor=pointer]:
+          - generic [ref=e194]: ⬜
+          - generic [ref=e195]: REGIME
+        - generic [ref=e196] [cursor=pointer]:
+          - generic [ref=e197]: ⬜
+          - generic [ref=e198]: VAR
+        - generic [ref=e199] [cursor=pointer]:
+          - generic [ref=e200]: ⬜
+          - generic [ref=e201]: CVD
+        - generic [ref=e202] [cursor=pointer]:
+          - generic [ref=e203]: ⬜
+          - generic [ref=e204]: ML
+        - generic [ref=e205] [cursor=pointer]:
+          - generic [ref=e206]: ⬜
+          - generic [ref=e207]: RL AGENT
+        - generic [ref=e208] [cursor=pointer]:
+          - generic [ref=e209]: ⬜
+          - generic [ref=e210]: FEAR&GREED
+        - generic [ref=e211] [cursor=pointer]:
+          - generic [ref=e212]: ⬜
+          - generic [ref=e213]: NEWS
+        - generic [ref=e214] [cursor=pointer]:
+          - generic [ref=e215]: ⬜
+          - generic [ref=e216]: SCORE
+    - generic [ref=e217]:
+      - generic [ref=e218]: // V9 NO-TRADE GATES
+      - generic [ref=e219]:
+        - generic [ref=e220]: 🔒
+        - generic [ref=e221]:
+          - generic [ref=e222]: GATES PRÜFEN...
+          - generic [ref=e223]: Alle 10 Gates müssen grün sein
+      - button "↻ GATES PRÜFEN" [ref=e224] [cursor=pointer]
+    - generic [ref=e225]:
+      - generic [ref=e226]: // ⚙️ AKTIVE KI-SYSTEME
+      - generic [ref=e227]: Welche KI-Module arbeiten gerade im Hintergrund.
+      - generic [ref=e228]:
+        - generic [ref=e229]:
+          - text: ML Ensemble
+          - generic [ref=e230]: —
+        - generic [ref=e231]:
+          - text: Coin Scanner
+          - generic [ref=e232]: —
+        - generic [ref=e233]:
+          - text: Bayesian
+          - generic [ref=e234]: —
+        - generic [ref=e235]:
+          - text: Sentiment
+          - generic [ref=e236]: —
+        - generic [ref=e237]:
+          - text: Auto-Heal
+          - generic [ref=e238]: —
+        - generic [ref=e239]:
+          - text: Drawdown
+          - generic [ref=e240]: —
+        - generic [ref=e241]:
+          - text: Blacklist
+          - generic [ref=e242]: —
+        - generic [ref=e243]:
+          - text: Regime
+          - generic [ref=e244]: —
+      - button "↻ AKTUALISIEREN" [ref=e245] [cursor=pointer]
+    - generic [ref=e246]:
+      - generic [ref=e247]: // RISK GUARD · V9 KILL SWITCH
+      - generic [ref=e248]:
+        - generic [ref=e249]: 🛡
+        - generic [ref=e250]:
+          - generic [ref=e251]: WARTE AUF ANALYSE
+          - generic [ref=e252]: Drawdown · ATR · Whale · News · Verlustserien
+    - generic [ref=e253]:
+      - generic [ref=e254]:
+        - text: //
+        - generic [ref=e255]: 🔴 OFFENE POSITIONEN
+        - generic [ref=e256]: "0"
+      - generic [ref=e257]: Keine offenen Positionen
+    - generic [ref=e258]:
+      - generic [ref=e259]:
+        - text: //
+        - generic [ref=e260]: 🎞 LIVE FEED · was der Bot gerade macht
+        - generic [ref=e261]: ● live
+      - generic [ref=e262]:
+        - button "ALL" [ref=e263] [cursor=pointer]
+        - button "TRADES" [ref=e264] [cursor=pointer]
+        - button "SIGNAL" [ref=e265] [cursor=pointer]
+        - button "GATES" [ref=e266] [cursor=pointer]
+        - button "TG" [ref=e267] [cursor=pointer]
+        - button "ERRORS" [ref=e268] [cursor=pointer]
+        - button "⏸" [ref=e269] [cursor=pointer]
+      - generic [ref=e270]: Laden...
+      - generic [ref=e271]:
+        - generic [ref=e272]: —
+        - generic [ref=e273]: —
+    - generic [ref=e274]:
+      - generic [ref=e275]: // 📈 EQUITY CURVE
+      - generic [ref=e277]:
+        - generic [ref=e278]: —
+        - generic [ref=e279]: —
+        - generic [ref=e280]: —
+    - generic [ref=e281]: Laden...
+    - generic [ref=e282]:
+      - generic [ref=e283]: // MARKTPAAR
+      - generic [ref=e284]:
+        - generic [ref=e285] [cursor=pointer]: BTC
+        - generic [ref=e286] [cursor=pointer]: ETH
+        - generic [ref=e287] [cursor=pointer]: SOL
+        - generic [ref=e288] [cursor=pointer]: BNB
+        - generic [ref=e289] [cursor=pointer]: XRP
+        - generic [ref=e290] [cursor=pointer]: ADA
+        - generic [ref=e291] [cursor=pointer]: AVAX
+        - generic [ref=e292] [cursor=pointer]: DOT
+        - generic [ref=e293] [cursor=pointer]: DOGE
+        - generic [ref=e294] [cursor=pointer]: LINK
+        - generic [ref=e295] [cursor=pointer]: ATOM
+        - generic [ref=e296] [cursor=pointer]: UNI
+        - generic [ref=e297] [cursor=pointer]: LTC
+        - generic [ref=e298] [cursor=pointer]: NEAR
+        - generic [ref=e299] [cursor=pointer]: ARB
+        - generic [ref=e300] [cursor=pointer]: OP
+        - generic [ref=e301] [cursor=pointer]: SUI
+        - generic [ref=e302] [cursor=pointer]: APT
+        - generic [ref=e303] [cursor=pointer]: SEI
+        - generic [ref=e304] [cursor=pointer]: MATIC
+      - generic [ref=e305]:
+        - generic [ref=e306]: —
+        - generic [ref=e307]: —
+      - generic [ref=e308]: —
+  - text: // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // //
+  - generic: NEXUS BOT V9 ULTIMATE · PRIVAT

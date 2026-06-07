@@ -1,0 +1,31 @@
+{
+  "name": "nexus_clean",
+  "version": "1.0.0",
+  "main": "server.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "test:integration": "npx playwright test tests/integration/",
+    "start": "node server.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "@tensorflow/tfjs": "^4.22.0",
+    "axios": "^1.14.0",
+    "better-sqlite3": "^12.8.0",
+    "ccxt": "^4.5.54",
+    "dotenv": "^17.3.1",
+    "express": "^5.2.1",
+    "isolated-vm": "^5.0.4",
+    "ml-random-forest": "^2.1.0",
+    "ml-xgboost": "^1.1.2",
+    "onnxruntime-node": "^1.26.0",
+    "rss-parser": "^3.13.0",
+    "ws": "^8.20.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.60.0"
+  }
+}

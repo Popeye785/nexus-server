@@ -1,0 +1,157 @@
+- generic [ref=e1]:
+  - text: e
+  - generic [ref=e2]:
+    - generic [ref=e3]:
+      - generic [ref=e4]:
+        - text: NEXUS
+        - emphasis [ref=e5]: BOT
+        - text: V9 ULTIMATE
+      - generic [ref=e6]:
+        - generic [ref=e7]:
+          - generic [ref=e8]: BTC/USDT
+          - generic [ref=e9]: "62.316"
+        - button "🤖 AUTONOM" [ref=e309] [cursor=pointer]
+        - button "🔵 DEMO" [ref=e11] [cursor=pointer]
+        - generic [ref=e13]: ONLINE
+    - generic [ref=e15]:
+      - generic [ref=e16]:
+        - button "📊 MARKT" [ref=e17] [cursor=pointer]:
+          - generic [ref=e18]: 📊
+          - generic [ref=e19]: MARKT
+        - button "🐋● WHALE" [ref=e310] [cursor=pointer]:
+          - generic [ref=e21]: 🐋●
+          - generic [ref=e22]: WHALE
+        - button "📈 CHART" [ref=e23] [cursor=pointer]:
+          - generic [ref=e24]: 📈
+          - generic [ref=e25]: CHART
+        - button "🔬 ANALYSE" [ref=e26] [cursor=pointer]:
+          - generic [ref=e27]: 🔬
+          - generic [ref=e28]: ANALYSE
+        - button "⚡ SIGNAL" [ref=e29] [cursor=pointer]:
+          - generic [ref=e30]: ⚡
+          - generic [ref=e31]: SIGNAL
+        - button "📖 ORDERS" [ref=e32] [cursor=pointer]:
+          - generic [ref=e33]: 📖
+          - generic [ref=e34]: ORDERS
+        - button "🧮 INDIKATOREN" [ref=e35] [cursor=pointer]:
+          - generic [ref=e36]: 🧮
+          - generic [ref=e37]: INDIKATOREN
+      - generic [ref=e38]:
+        - button "⚡ STATUS" [ref=e39] [cursor=pointer]:
+          - generic [ref=e40]: ⚡
+          - generic [ref=e41]: STATUS
+        - button "⚙️ BOTS" [active] [ref=e42] [cursor=pointer]:
+          - generic [ref=e43]: ⚙️
+          - generic [ref=e44]: BOTS
+        - button "🪙 COINS" [ref=e45] [cursor=pointer]:
+          - generic [ref=e46]: 🪙
+          - generic [ref=e47]: COINS
+        - button "💰 KAPITAL" [ref=e48] [cursor=pointer]:
+          - generic [ref=e49]: 💰
+          - generic [ref=e50]: KAPITAL
+        - button "📰 NEWS" [ref=e51] [cursor=pointer]:
+          - generic [ref=e52]: 📰
+          - generic [ref=e53]: NEWS
+        - button "🧠 KI-DASH" [ref=e54] [cursor=pointer]:
+          - generic [ref=e55]: 🧠
+          - generic [ref=e56]: KI-DASH
+        - button "🔧 ARS" [ref=e57] [cursor=pointer]:
+          - generic [ref=e58]: 🔧
+          - generic [ref=e59]: ARS
+        - button "🛡 SICHERHEIT" [ref=e60] [cursor=pointer]:
+          - generic [ref=e61]: 🛡
+          - generic [ref=e62]: SICHERHEIT
+        - button "🧬 ML" [ref=e63] [cursor=pointer]:
+          - generic [ref=e64]: 🧬
+          - generic [ref=e65]: ML
+        - button "🛠 SYSTEM" [ref=e66] [cursor=pointer]:
+          - generic [ref=e67]: 🛠
+          - generic [ref=e68]: SYSTEM
+        - button "🔎 DIAGNOSE" [ref=e69] [cursor=pointer]:
+          - generic [ref=e70]: 🔎
+          - generic [ref=e71]: DIAGNOSE
+        - button "🌐 EXCHG" [ref=e72] [cursor=pointer]:
+          - generic [ref=e73]: 🌐
+          - generic [ref=e74]: EXCHG
+        - button "🧩 STRATBUILD" [ref=e75] [cursor=pointer]:
+          - generic [ref=e76]: 🧩
+          - generic [ref=e77]: STRATBUILD
+        - button "🔑 CONFIG" [ref=e78] [cursor=pointer]:
+          - generic [ref=e79]: 🔑
+          - generic [ref=e80]: CONFIG
+  - text: // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // //
+  - generic [ref=e311]:
+    - generic [ref=e312]:
+      - generic [ref=e313]:
+        - generic [ref=e314]:
+          - text: ⚙️ NEXUS V9
+          - emphasis [ref=e315]: PORTFOLIO
+        - generic [ref=e316]: "--:--:--"
+        - generic [ref=e317]: LIVE
+      - generic [ref=e318]:
+        - generic [ref=e319]:
+          - generic [ref=e320]: Investment
+          - generic [ref=e321]: "-- USDT"
+          - generic [ref=e322]: "-- % im Markt"
+        - generic [ref=e324]:
+          - generic [ref=e325]: Current PnL
+          - generic [ref=e326]: "-- USDT"
+          - generic [ref=e327]: "-- %"
+        - generic [ref=e328]:
+          - generic [ref=e329]: Total Heute
+          - generic [ref=e330]: "-- USDT"
+          - generic [ref=e331]: "Realized: --"
+      - generic [ref=e332]:
+        - generic [ref=e333]: 💎 Vermögen total
+        - generic [ref=e334]:
+          - generic [ref=e335]: "-- USDT"
+          - generic [ref=e336]: "Live: -- USDT"
+          - generic [ref=e337]: "unrealized: --"
+        - generic [ref=e338]: = Cash + Reserve + Im Markt
+      - generic [ref=e339]:
+        - generic [ref=e340]: 💰 Kapital-Flow
+        - generic [ref=e341]:
+          - generic [ref=e342]:
+            - generic [ref=e343]: Bitget verfügbar
+            - generic [ref=e344]: "-- USDT"
+          - generic [ref=e345]: ↓
+          - generic [ref=e346]:
+            - generic [ref=e347]: Trading-Topf
+            - generic [ref=e348]: "-- USDT"
+          - generic [ref=e349]: ↓
+          - generic [ref=e350]:
+            - generic [ref=e351]: Im Markt (offene Positions) 0
+            - generic [ref=e352]: "-- USDT"
+          - generic [ref=e353]:
+            - generic [ref=e354]: Reserve (sicher)
+            - generic [ref=e355]: "-- USDT"
+      - generic [ref=e357]: 📊 24H Activity (0 Trades)
+      - generic [ref=e359]:
+        - generic [ref=e360]: 🎯 Performance
+        - generic [ref=e361]:
+          - generic [ref=e362]:
+            - generic [ref=e363]: Trades Total
+            - generic [ref=e364]: "--"
+          - generic [ref=e365]:
+            - generic [ref=e366]: Win Rate
+            - generic [ref=e367]: "-- %"
+          - generic [ref=e368]:
+            - generic [ref=e369]: Slots (Gesamt)
+            - generic [ref=e370]: "--/--"
+      - generic [ref=e372]:
+        - generic [ref=e373]: WS connected
+        - generic [ref=e375]: Watchdog
+        - generic [ref=e377]: Brain
+        - generic [ref=e379]: Guardian
+        - generic [ref=e383]: REGIME
+    - generic [ref=e384]:
+      - generic [ref=e385]: 🤖 BotType-Filter
+      - generic [ref=e386]:
+        - button "Alle 0" [ref=e387] [cursor=pointer]
+        - button "SINGLE 0" [ref=e388] [cursor=pointer]
+        - button "GRID 0" [ref=e389] [cursor=pointer]
+        - button "DCA 0" [ref=e390] [cursor=pointer]
+        - button "INFGRID 0" [ref=e391] [cursor=pointer]
+    - generic [ref=e393]: Lade Trades...
+  - text: // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // //
+  - generic: NEXUS BOT V9 ULTIMATE · PRIVAT

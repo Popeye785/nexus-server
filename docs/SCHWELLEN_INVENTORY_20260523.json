@@ -1,0 +1,223 @@
+{
+  "schema_version": "1.0",
+  "extracted_at": "2026-05-23 13:13",
+  "source": "server.js + modules/*.js + bot_settings",
+  "categories": {
+    "wallet_capital": {
+      "RESERVE_RATIO": {
+        "value": 0.7,
+        "source": "CFG Z.155",
+        "purpose": "70/30 Profit-Split"
+      },
+      "RESERVE_SPLIT_MIN": {
+        "value": 0.2,
+        "source": "CFG Z.157"
+      },
+      "RESERVE_SPLIT_MAX": {
+        "value": 0.8,
+        "source": "CFG Z.158"
+      },
+      "KELLY_FRACTION": {
+        "value": 0.05,
+        "source": "CFG Z.159",
+        "note": "5% = Quarter-Kelly konservativ"
+      },
+      "MIN_USABLE_BALANCE": {
+        "value": 10,
+        "source": "CFG Z.160",
+        "unit": "USDT"
+      },
+      "MIN_POSITION_USDT": {
+        "value": 5,
+        "source": "CFG Z.161"
+      },
+      "MAX_POSITION_PCT": {
+        "value": 0.1,
+        "source": "CFG Z.162",
+        "note": "10% pro Position"
+      },
+      "MAX_OPEN_TRADES": {
+        "value": 5,
+        "source": "CFG Z.164"
+      },
+      "MAX_TOTAL_EXPOSURE_PCT": {
+        "value": 0.6,
+        "source": "CFG Z.182"
+      },
+      "MAX_ALT_EXPOSURE_PCT": {
+        "value": 0.45,
+        "source": "CFG Z.183"
+      }
+    },
+    "risk_layer": {
+      "MAX_DRAWDOWN_PCT": {
+        "value": 0.12,
+        "source": "CFG Z.170",
+        "purpose": "KillSwitch-Trigger"
+      },
+      "MAX_DAILY_LOSS_PCT": {
+        "value": 0.05,
+        "source": "CFG Z.171"
+      },
+      "AUTO_NOTBREMSE_DAILY_LOSS_USDT": {
+        "value": -25,
+        "source": "CFG Z.178",
+        "purpose": "PnL-basierter Hard-Stop"
+      },
+      "RISK_PER_TRADE": {
+        "value": 0.01,
+        "source": "CFG Z.195",
+        "note": "1% Fixed-Fractional"
+      },
+      "PROFIT_LOCK_DD_THRESHOLD": {
+        "value": 0.1,
+        "source": "CFG Z.191"
+      },
+      "PROFIT_LOCK_SIZE_REDUCTION": {
+        "value": 0.7,
+        "source": "CFG Z.192"
+      },
+      "MAX_SLIPPAGE_PCT": {
+        "value": 0.005,
+        "source": "CFG Z.187"
+      }
+    },
+    "brain_decision": {
+      "SCORE_FLOOR": {
+        "value": 0.08,
+        "source": "CFG Z.211",
+        "mode": "log_only"
+      },
+      "SCORE_FLOOR_OLD": {
+        "value": 0.04,
+        "source": "CFG Z.212",
+        "purpose": "Compare baseline"
+      },
+      "SCORE_FLOOR_MODE": {
+        "value": "log_only",
+        "note": "blockt NICHT aktiv"
+      },
+      "MIN_SIGNAL_STRENGTH": {
+        "value": 0.55,
+        "source": "CFG Z.202"
+      },
+      "SIGNAL_CONSENSUS_MIN": {
+        "value": 2,
+        "source": "CFG Z.203"
+      },
+      "BRAIN_VETO_brain_conf_max": {
+        "value": 0.05,
+        "note": "Bedingung 2 von 4"
+      },
+      "BRAIN_VETO_unified_conf_max": {
+        "value": 0.15,
+        "note": "Bedingung 4 von 4"
+      }
+    },
+    "family_weights": {
+      "TREND": 0.2,
+      "MOMENTUM": 0.15,
+      "RISK": 0.2,
+      "SENTIMENT": 0.25,
+      "MICROSTRUCTURE": 0.2,
+      "source": "ConsensusEngine.FAMILY_WEIGHTS Z.26312",
+      "note": "Adaptive via HMM-Resolver (Stufe 1) \u2014 aktuell quasi-static weil HMM klebt RANGING"
+    },
+    "anomaly": {
+      "zThreshold": {
+        "value": 5.0,
+        "source": "AnomalyDetector Z.22274"
+      },
+      "CLUSTER_MIN_SYMBOLS": {
+        "value": 3
+      },
+      "RETRIGGER_WINDOW_MS": {
+        "value": 1800000,
+        "note": "30 min pro Symbol"
+      }
+    },
+    "news_risk": {
+      "LOOKBACK_HOURS": 24,
+      "FRESH_HOURS": 1,
+      "CRITICAL_RISK": 95,
+      "CRITICAL_CONTAGION": 0.5,
+      "Black_Swan_factor_trigger": 5.0,
+      "Vote_factor_trigger": 0.3,
+      "newsRiskMult_floor": 0.2,
+      "source": "modules/news_risk_aggregator.js"
+    },
+    "hmm_regime": {
+      "SMOOTH_ALPHA": 0.55,
+      "RANGING_diagonal": 0.45,
+      "BULL_diagonal": 0.78,
+      "BEAR_diagonal": 0.72,
+      "CRASH_diagonal": 0.35,
+      "source": "modules/hmm_regime.js"
+    },
+    "fees_bitget_vip0": {
+      "MAKER_FEE": 0.001,
+      "TAKER_FEE": 0.001,
+      "note": "Bitget VIP-0 Standard 2026 \u2014 beides 10 bps"
+    },
+    "indicators": {
+      "ADX_MIN_TRADE": 18,
+      "ADX_MIN_FULL": 22,
+      "ADX_STRONG": 30,
+      "EMA_FAST": 12,
+      "EMA_SLOW": 26,
+      "ATR_STOP_MULT": 1.5,
+      "ATR_TP_MULT": 3.0,
+      "TRAILING_PCT": 0.02,
+      "TRAILING_ATR_MULT": 2.0
+    },
+    "ml": {
+      "ML_MIN_ACCURACY": 0.6,
+      "ML_MIN_TRADES_RETRAIN": 50,
+      "LSTM_SHADOW_LATENCY_LIMIT_MS": 200,
+      "RL_AUTO_ACTIVATE_AFTER": 500
+    },
+    "leverage": {
+      "DEFAULT_LEVERAGE": 3,
+      "MAX_LEVERAGE": 10,
+      "note": "PAPER, kein realer Leverage aktuell"
+    },
+    "whipsaw": {
+      "MIN_HOLD_TIME_MS": 300000,
+      "LOOKBACK_MS": 1800000,
+      "MAX_FLIPS": 2
+    }
+  },
+  "outcome_tracker_live": {
+    "1h_accuracy": 16.05,
+    "1h_n": 59620,
+    "4h_accuracy": 47.08,
+    "4h_n": 65596,
+    "24h_accuracy": 50.88,
+    "24h_n": 51694,
+    "verdict": "1h katastrophal under random, 4h knapp unter, 24h knapp \u00fcber"
+  },
+  "decision_mix_7d": {
+    "BUY": {
+      "n": 57558,
+      "pct": 50.9
+    },
+    "SELL": {
+      "n": 39020,
+      "pct": 34.5
+    },
+    "HOLD": {
+      "n": 16521,
+      "pct": 14.6
+    }
+  },
+  "blocked_trades_7d": {
+    "FLOOR_THRESHOLD": {
+      "n": 541,
+      "avg_conf": 0.084
+    },
+    "BRAIN_VETO_NO_CONSENSUS": {
+      "n": 164,
+      "avg_conf": 0.0
+    }
+  }
+}

@@ -1,0 +1,86 @@
+# ═══ NEXUS V9 .gitignore — Tier-Z3 + Tier-Z4 (Git-Init 13.05.2026) ═══
+
+# --- Secrets / Credentials ---
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+*.crt
+secrets/
+credentials/
+
+# --- Node ---
+node_modules/
+
+# --- Persistenz: Database (SQLite + WAL + SHM) ---
+nexus.db
+nexus.db-wal
+nexus.db-shm
+nexus.db-journal
+
+# --- Persistenz: Demo-State (ändert sich pro Cycle) ---
+data/demo_*.json
+
+# --- Backups (alle Patterns) ---
+*.bak.*
+backups/
+
+# --- Backtesting-Daten (re-downloadbar von Binance Vision/CDD, 800+ MB) ---
+historical_data/
+*.csv
+
+# --- Logs ---
+logs/
+*.log
+.pm2/
+pm2.bak.*.json
+
+# --- PM2 ecosystem state ---
+ecosystem.config.js.bak.*
+
+# --- Interne Engineering-Doku (Specs, Session-Logs, Recherche) ---
+.consensus_research_*.md
+.chatgpt_*.md
+.regime_awareness_*.md
+.reset_day_zero*.txt
+.tier*
+.welle*
+.aladdin_*
+.brain_*
+.csv_*
+.ideas_*
+.import_*
+*_session_log.txt
+*_spec.txt
+*_obs.txt
+*_test.js
+
+# --- Claude Code session state ---
+.claude/
+
+# --- Public assets (Brain-PNGs/Foundation-Bilder, separat verwaltet) ---
+# public/assets/   ← AUSKOMMENTIERT: brain.svg (32K) ist Code-Asset und soll mit
+
+# --- Editor / OS noise ---
+.DS_Store
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+
+# --- Temp ---
+*.tmp
+*.db
+nexus.db.*
+*.db.bak.*
+*.CORRUPT_*
+*.db-wal-*
+*.db-shm-*
+*.tar.gz
+*.tar
+snapshots/
+_backups_day_zero/
+_backups_day_zero/**
+historical_data.bak.*

@@ -1,0 +1,79 @@
+#!/bin/bash
+# 12h-Monitor nach Recovery. Stop-Gates HART. Gesamtampel = schlechtestes Subsystem.
+# Korrekturen vs Christian-Original (transparent):
+#   1. demo_wallet.json Pfad: ./data/demo_wallet.json (statt ./demo_wallet.json)
+#   2. TEST_ONLY via /api/test-only/status (statt bot_settings.test_only_mode — existiert nicht)
+#   3. isLive via /api/mode (statt bot_settings.is_live — existiert nicht)
+MAINDB="./nexus.db"
+BASE=/tmp/obs_12h_120s_after_recovery
+CSV=${BASE}.csv; HB=${BASE}_heartbeat.txt; STOPLOG=${BASE}_stop.log; DONE=${BASE}.done
+RESERVE_LB=4.2661642227906995
+DURATION=$((12*3600)); INTERVAL=60; START=$(date +%s)
+PREV_DEC=""; ZERO_DEC_STREAK=0
+
+# Stop-Gate Log-Patterns (DB-Korruption + Incident)
+BAD_PATTERN='malformed|SQLITE_CORRUPT|SQLITE_NOTADB|database disk image|DATABASE_HEALTHY'
+INC_PATTERN='INCIDENTS_MANAGED'
+
+[ -f "$CSV" ] || echo "ts,unix,cpu,mem_mb,db_qc,reserve,guardian,test_only,is_live,cycle_ms,dec_total,dec_5m,malformed_recent,incidents_recent,candle_total,syslog_total,balance_total,subsys_red,gesamtampel" > "$CSV"
+
+trigger_stop(){ echo "$(date '+%F %T') STOP-GATE: $1" | tee -a "$STOPLOG"; echo "STOPPED:$1" > "$DONE"; exit 2; }
+
+while :; do
+  NOW=$(date +%s); ELAPSED=$((NOW-START))
+  [ $ELAPSED -ge $DURATION ] && { echo "DONE:12h_clean $(date '+%F %T')" > "$DONE"; exit 0; }
+
+  TS=$(date '+%F %T')
+  # --- DB integrity (read-only) ---
+  QC=$(node /Users/christianheilig/NEXUS_CLEAN/nexus_dbq.js "$MAINDB" quick_check 2>/dev/null | head -1)
+  # --- Reserve (korrigierter Pfad: data/ + JSON-Parse via python3 — grep-Approach gibt total nicht reserve) ---
+  RES=$(cat data/demo_wallet.json 2>/dev/null | python3 -c "import sys,json;print(json.load(sys.stdin).get('reserve',''))" 2>/dev/null)
+  # --- Mode/Safety via API (statt bot_settings — Keys existieren dort nicht) ---
+  TESTONLY=$(curl -sf --max-time 5 http://localhost:3000/api/test-only/status 2>/dev/null | python3 -c "import sys,json;print(json.load(sys.stdin).get('active'))" 2>/dev/null)
+  ISLIVE=$(curl -sf --max-time 5 http://localhost:3000/api/mode 2>/dev/null | python3 -c "import sys,json;print(json.load(sys.stdin).get('isLive'))" 2>/dev/null)
+  CYCLE=$(sqlite3 "$MAINDB" "SELECT value FROM bot_settings WHERE key='aladdin_cycle_ms';" 2>/dev/null)
+  # --- Counts ---
+  DEC=$(sqlite3 "$MAINDB" "SELECT COUNT(*) FROM aladdin_decisions;" 2>/dev/null)
+  CANDLE=$(sqlite3 "$MAINDB" "SELECT COUNT(*) FROM candle_cache;" 2>/dev/null)
+  SYSLOG=$(sqlite3 "$MAINDB" "SELECT COUNT(*) FROM system_log;" 2>/dev/null)
+  BAL=$(sqlite3 "$MAINDB" "SELECT COUNT(*) FROM balance_history;" 2>/dev/null)
+  DEC5M="0"; [ -n "$PREV_DEC" ] && DEC5M=$((DEC-PREV_DEC)); PREV_DEC=$DEC
+  # --- Bot proc ---
+  PROC=$(ps aux | grep "node /Users/christianheilig/NEXUS_CLEAN/server.js" | grep -v grep | head -1)
+  CPU=$(echo "$PROC" | awk '{print $3}'); MEM=$(echo "$PROC" | awk '{print int($6/1024)}')
+  GUARD=$(curl -sf --max-time 5 http://localhost:3000/api/guardian/status 2>/dev/null | python3 -c "import sys,json;print(json.load(sys.stdin).get('lastState',''))" 2>/dev/null)
+  # --- Log-Scan letzte ~2min ---
+  RECENT=$(pm2 logs nexus --lines 120 --nostream 2>/dev/null)
+  MALF=$(echo "$RECENT" | grep -icE "$BAD_PATTERN")
+  INC=$(echo "$RECENT" | grep -icE "$INC_PATTERN")
+
+  # ===== SUBSYSTEM-AMPELN (rot=2, gelb=1, grün=0) =====
+  R=0; RED=""; RY=""
+  echo "$QC" | grep -q "^ok$" || { R=2; RED="DB_quick_check=$QC"; }
+  [ "$MALF" -gt 0 ] && { R=2; RED="malformed/corrupt x$MALF"; }
+  [ -n "$RES" ] && awk "BEGIN{exit !($RES < $RESERVE_LB)}" && { R=2; RED="Reserve<$RESERVE_LB ($RES)"; }
+  [ "$ISLIVE" = "True" ] && { R=2; RED="LIVE=True!"; }
+  [ "$TESTONLY" = "True" ] || { R=2; RED="TEST_ONLY!=True (got=$TESTONLY)"; }
+  [ -z "$PROC" ] && { R=2; RED="Bot offline"; }
+  [ "$INC" -gt 0 ] && { [ $R -lt 1 ] && R=1; RY="incidents x$INC"; }
+  [ "$GUARD" = "RED" ] && { R=2; RED="Guardian RED"; }
+  [ "$GUARD" = "YELLOW" ] && { [ $R -lt 1 ] && R=1; RY="Guardian YELLOW"; }
+  # Decision-Drop: 0 über 3 Samples
+  if [ "$DEC5M" = "0" ]; then ZERO_DEC_STREAK=$((ZERO_DEC_STREAK+1)); else ZERO_DEC_STREAK=0; fi
+  if [ $ZERO_DEC_STREAK -ge 3 ]; then [ $R -lt 1 ] && R=1; RY="decisions_5m=0 x${ZERO_DEC_STREAK} (Brain blind?)"; fi
+
+  case $R in 2) AMPEL="ROT";; 1) AMPEL="GELB";; *) AMPEL="GRUEN";; esac
+
+  echo "$TS,$NOW,$CPU,$MEM,\"$QC\",$RES,$GUARD,$TESTONLY,$ISLIVE,$CYCLE,$DEC,$DEC5M,$MALF,$INC,$CANDLE,$SYSLOG,$BAL,\"${RED:-${RY:-none}}\",$AMPEL" >> "$CSV"
+  echo "$(date '+%F %T') ampel=$AMPEL remaining=$(( (DURATION-ELAPSED)/3600 ))h dec5m=$DEC5M malf=$MALF qc=$QC reserve=$RES test_only=$TESTONLY" > "$HB"
+
+  # ===== HARTE STOP-GATES =====
+  echo "$QC" | grep -q "^ok$" || trigger_stop "DB_quick_check NICHT ok: $QC"
+  [ "$MALF" -gt 0 ] && trigger_stop "malformed/corrupt im Log x$MALF"
+  [ -n "$RES" ] && awk "BEGIN{exit !($RES < $RESERVE_LB)}" && trigger_stop "Reserve unter Lower-Bound: $RES"
+  [ "$ISLIVE" = "True" ] && trigger_stop "LIVE aktiviert!"
+  [ "$TESTONLY" != "True" ] && trigger_stop "TEST_ONLY nicht aktiv (got=$TESTONLY)"
+  [ -z "$PROC" ] && trigger_stop "Bot-Prozess offline"
+
+  sleep $INTERVAL
+done

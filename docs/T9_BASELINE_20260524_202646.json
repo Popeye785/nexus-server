@@ -1,0 +1,102 @@
+{
+  "wallet": {
+    "total": 1276.1261613122686,
+    "reserve": 193.33796999999998,
+    "trading": 1082.7881913122685,
+    "peak": 1327.5486
+  },
+  "drawdown_pct": 3.87,
+  "ui_winrate": {
+    "strp_total": 7035,
+    "strp_wins": 7034,
+    "dca_iters_total": 40,
+    "dca_iters_wins": 4,
+    "closed_dca_instances": 6,
+    "closed_dca_tp_wins": 1,
+    "closed_grid_instances": 3,
+    "single_open": 0,
+    "single_closed": 1
+  },
+  "pnl_realized": 280.82,
+  "brain_accuracy": {
+    "1h": {
+      "n": 29070,
+      "acc_pct": 12.33
+    },
+    "1h_per_dir": {
+      "BUY": {
+        "n": 21966,
+        "acc_pct": 11.6
+      },
+      "SELL": {
+        "n": 7104,
+        "acc_pct": 14.7
+      }
+    },
+    "4h": {
+      "n": 25222,
+      "acc_pct": 33.59
+    },
+    "4h_per_dir": {
+      "BUY": {
+        "n": 20692,
+        "acc_pct": 32.0
+      },
+      "SELL": {
+        "n": 4530,
+        "acc_pct": 41.0
+      }
+    },
+    "24h": {
+      "n": 0,
+      "acc_pct": 0
+    },
+    "24h_per_dir": {}
+  },
+  "voter_hit_rates": {
+    "TREND": {
+      "n": 28,
+      "hit_pct": 32.1
+    },
+    "MOMENTUM": {
+      "n": 28,
+      "hit_pct": 14.3
+    },
+    "RISK": {
+      "n": 28,
+      "hit_pct": 35.7
+    },
+    "SENTIMENT": {
+      "n": 28,
+      "hit_pct": 14.3
+    },
+    "MICROSTRUCTURE": {
+      "n": 28,
+      "hit_pct": 28.6
+    }
+  },
+  "ml_models": {
+    "rf_trees": {
+      "type": "RANDOM_FOREST",
+      "acc_pct": 57.76,
+      "samples": 435
+    },
+    "gb_stumps": {
+      "type": "GRADIENT_BOOSTING",
+      "acc_pct": 57.76,
+      "samples": 435
+    },
+    "pc_weights": {
+      "type": "PERCEPTRON",
+      "acc_pct": 0.0,
+      "samples": 256368
+    }
+  },
+  "decision_mix_24h": {
+    "BUY": 23809,
+    "HOLD": 5347,
+    "SELL": 9488
+  },
+  "snapshot_ts": "2026-05-24 20:26:56",
+  "bot_pid": null
+}

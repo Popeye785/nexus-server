@@ -1,0 +1,143 @@
+{
+  "version": "v3",
+  "symbols": [
+    "BTCUSDT",
+    "ETHUSDT",
+    "SOLUSDT"
+  ],
+  "days_trained": 366,
+  "seq_len": 60,
+  "hidden_size": 128,
+  "num_layers": 2,
+  "dropout": 0.3,
+  "epochs_trained": 19,
+  "best_val_loss": 6.193157499209391e-05,
+  "test_loss": 2.320602379215431e-05,
+  "test_mae": 0.0032381680696816663,
+  "test_direction_accuracy": 0.49881046788263284,
+  "test_pred_stdev": 0.0004460425955464873,
+  "test_pred_mean": -0.0002355525442927154,
+  "plausibility_within_10pct_first_100": 1.0,
+  "history": [
+    {
+      "epoch": 1,
+      "train_loss": 0.00011112261369223678,
+      "val_loss": 6.352534272721344e-05,
+      "val_dir_acc": 0.5117818374371194
+    },
+    {
+      "epoch": 2,
+      "train_loss": 5.099301342979665e-05,
+      "val_loss": 6.257771112635433e-05,
+      "val_dir_acc": 0.5101932750860472
+    },
+    {
+      "epoch": 3,
+      "train_loss": 4.994236664451038e-05,
+      "val_loss": 6.99757632988479e-05,
+      "val_dir_acc": 0.4868943606036537
+    },
+    {
+      "epoch": 4,
+      "train_loss": 4.8583364339303646e-05,
+      "val_loss": 6.743512608427279e-05,
+      "val_dir_acc": 0.5107227958697379
+    },
+    {
+      "epoch": 5,
+      "train_loss": 4.819544636284787e-05,
+      "val_loss": 6.221376230660758e-05,
+      "val_dir_acc": 0.4895419645221075
+    },
+    {
+      "epoch": 6,
+      "train_loss": 4.780340346719359e-05,
+      "val_loss": 6.221543783375684e-05,
+      "val_dir_acc": 0.4879534021710352
+    },
+    {
+      "epoch": 7,
+      "train_loss": 4.644889816288916e-05,
+      "val_loss": 6.463668376400314e-05,
+      "val_dir_acc": 0.5107227958697379
+    },
+    {
+      "epoch": 8,
+      "train_loss": 4.549658108437754e-05,
+      "val_loss": 6.361688720823297e-05,
+      "val_dir_acc": 0.4868943606036537
+    },
+    {
+      "epoch": 9,
+      "train_loss": 4.5066108544242827e-05,
+      "val_loss": 6.267688801852444e-05,
+      "val_dir_acc": 0.49113052687317976
+    },
+    {
+      "epoch": 10,
+      "train_loss": 4.402446373620009e-05,
+      "val_loss": 6.565310278104686e-05,
+      "val_dir_acc": 0.4868943606036537
+    },
+    {
+      "epoch": 11,
+      "train_loss": 4.35854205886247e-05,
+      "val_loss": 6.193157499209391e-05,
+      "val_dir_acc": 0.5101932750860472
+    },
+    {
+      "epoch": 12,
+      "train_loss": 4.3605624854410896e-05,
+      "val_loss": 6.220718639937014e-05,
+      "val_dir_acc": 0.5096637543023563
+    },
+    {
+      "epoch": 13,
+      "train_loss": 4.364426611127262e-05,
+      "val_loss": 6.297909315153416e-05,
+      "val_dir_acc": 0.4847762774688906
+    },
+    {
+      "epoch": 14,
+      "train_loss": 4.315393198687685e-05,
+      "val_loss": 6.215876433364566e-05,
+      "val_dir_acc": 0.5104580354778925
+    },
+    {
+      "epoch": 15,
+      "train_loss": 4.3191674616049526e-05,
+      "val_loss": 6.36279395472573e-05,
+      "val_dir_acc": 0.5107227958697379
+    },
+    {
+      "epoch": 16,
+      "train_loss": 4.3189526747357174e-05,
+      "val_loss": 6.303293491617276e-05,
+      "val_dir_acc": 0.5107227958697379
+    },
+    {
+      "epoch": 17,
+      "train_loss": 4.274099884503487e-05,
+      "val_loss": 6.242402365358156e-05,
+      "val_dir_acc": 0.4866296002118083
+    },
+    {
+      "epoch": 18,
+      "train_loss": 4.261338002806997e-05,
+      "val_loss": 6.204425037538788e-05,
+      "val_dir_acc": 0.5048980672491395
+    },
+    {
+      "epoch": 19,
+      "train_loss": 4.223882615383814e-05,
+      "val_loss": 6.250545042864466e-05,
+      "val_dir_acc": 0.48451151707704526
+    }
+  ],
+  "train_size": 18297,
+  "val_size": 3777,
+  "test_size": 3783,
+  "device": "mps",
+  "opset": 17,
+  "output_model": "models/lstm_crypto_v3.onnx"
+}

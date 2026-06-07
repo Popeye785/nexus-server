@@ -1,0 +1,1326 @@
+AUFKLAERUNG /api/deploy Patch-Vorbereitung (Phase A, AUD-VOLL-044)
+Zeit: Mo 18 Mai 2026 08:25:59 CEST
+Modus: READ-ONLY
+Output-Path: /Users/christianheilig/NEXUS_CLEAN/AUFKLAERUNG_DEPLOY_20260518_0825.txt
+
+=================================================================
+1. CODE-STELLE — server.js Z.14580-14640 wörtlich
+=================================================================
+14580:     // Aggregat
+14581:     const eqs = series.map(s => s.equity).filter(v => Number.isFinite(v));
+14582:     const min = eqs.length ? Math.min(...eqs) : 0;
+14583:     const max = eqs.length ? Math.max(...eqs) : 0;
+14584:     const first = eqs[0] || 0;
+14585:     const last = eqs[eqs.length - 1] || 0;
+14586:     const ddPct = max > 0 ? ((max - min) / max) * 100 : 0;
+14587:     res.json({
+14588:       ok: true, period, sincePoints: series.length, cutoff,
+14589:       series, summary: {
+14590:         firstEquity: Number(first.toFixed(2)),
+14591:         lastEquity:  Number(last.toFixed(2)),
+14592:         minEquity:   Number(min.toFixed(2)),
+14593:         maxEquity:   Number(max.toFixed(2)),
+14594:         changeUSDT:  Number((last - first).toFixed(2)),
+14595:         changePct:   first > 0 ? Number((((last - first) / first) * 100).toFixed(2)) : 0,
+14596:         maxDrawdownPct: Number(ddPct.toFixed(2)),
+14597:       },
+14598:     });
+14599:   } catch (e) { res.status(500).json({ error: e.message }); }
+14600: });
+14601: 
+14602: // ── DEPLOY MODE ──
+14603: app.post('/api/deploy', (req,res) => {
+14604:   const valid = ['PAPER','DRY_LIVE','LIVE_RESTRICTED','LIVE_FULL'];
+14605:   if (!valid.includes(req.body?.mode)) return res.status(400).json({ error:'Invalid mode', valid });
+14606:   CFG.DEPLOY_MODE = req.body.mode;
+14607:   NoTrade.gates.deployModeAllows = ['DRY_LIVE','LIVE_RESTRICTED','LIVE_FULL'].includes(CFG.DEPLOY_MODE);
+14608:   Log.info('DEPLOY', `Mode: ${CFG.DEPLOY_MODE}`);
+14609:   res.json({ ok:true, mode:CFG.DEPLOY_MODE });
+14610: });
+14611: 
+14612: // ── FUTURES LEVERAGE ──
+14613: 
+14614: // ── BACKTEST ──
+14615: app.post('/api/research/backtest', async (req,res) => {
+14616:   const { symbol='BTCUSDT', granularity='1h' } = req.body;
+14617:   const candles = await Bitget.fetchCandles(symbol, granularity, 300);
+14618:   if (candles.length < 50) return res.json({ error:'Insufficient data' });
+14619:   const trades = [];
+14620:   for (let i=30; i<candles.length-1; i++) {
+14621:     const slice = candles.slice(0,i+1);
+14622:     const closes = slice.map(c=>c.close);
+14623:     // Use multiple indicators for backtest signal
+14624:     const rsi  = Ind.rsi(closes);
+14625:     const macd = Ind.macd(closes);
+14626:     const bb   = Ind.bb(closes);
+14627:     const cur  = closes[closes.length-1];
+14628:     let signal = null;
+14629:     if (rsi<35 && bb && cur<bb.lower && macd.histogram>0) signal='BUY';
+14630:     else if (rsi>65 && bb && cur>bb.upper && macd.histogram<0) signal='SELL';
+14631:     if (!signal) continue;
+14632:     const entry = candles[i].close;
+14633:     const exit  = candles[i+1].close;
+14634:     const pnl   = signal==='BUY' ? (exit-entry)/entry : (entry-exit)/entry;
+14635:     trades.push({ i, entry, exit, pnl, signal });
+14636:   }
+14637:   const wins    = trades.filter(t=>t.pnl>0).length;
+14638:   const totalPnL = trades.reduce((s,t)=>s+t.pnl,0);
+14639:   const pnlArr  = trades.map(t=>t.pnl);
+14640:   res.json({
+
+=================================================================
+2. AUFRUFER IM REPO — grep -rn '/api/deploy' . (alle Treffer)
+=================================================================
+
+--- grep -rn (alle Treffer, exkl. .bak/.claude/node_modules) ---
+AUFKLAERUNG_DEPLOY_20260518_0825.txt:1:AUFKLAERUNG /api/deploy Patch-Vorbereitung (Phase A, AUD-VOLL-044)
+AUFKLAERUNG_DEPLOY_20260518_0825.txt:32:14603: app.post('/api/deploy', (req,res) => {
+AUFKLAERUNG_DEPLOY_20260518_0825.txt:72:2. AUFRUFER IM REPO — grep -rn '/api/deploy' . (alle Treffer)
+server.js:10433:      // Aktivierung NUR mit separater Christian-F2 via POST /api/deploy {mode:'DRY_LIVE'}.
+server.js:14603:app.post('/api/deploy', (req,res) => {
+AUDIT_NEXUS_V9_VOLL_20260518_0805.md:71:| 1 | AUD-VOLL-044 / AUD-001 | **KRITISCH** | `/api/deploy` (Z.14603-14610) ändert CFG.DEPLOY_MODE auf 'LIVE_FULL' ohne Auth/Confirm/Audit. 5 Zeilen Code. |
+AUDIT_NEXUS_V9_VOLL_20260518_0805.md:243:- AUD-VOLL-044 **KRITISCH**: /api/deploy 5 Zeilen ohne Auth/Confirm/Audit
+AUDIT_NEXUS_V9_VOLL_20260518_0805.md:297:6. **/api/deploy Auth-Layer**: Tailscale-only-bind oder Express-Layer-Auth?
+AUDIT_NEXUS_V9_20260518_0756.md:13:| 1 | AUD-001 | **KRITISCH** | `/api/deploy`, `/api/mode/live`, `/api/kill` haben KEINE Auth-Middleware — jeder mit Bot-Port-Zugriff kann LIVE schalten oder Bot killen |
+AUDIT_NEXUS_V9_20260518_0756.md:260:  - `/api/deploy` (Mode-Switch) — Z.14603
+AUDIT_NEXUS_V9_20260518_0756.md:282:    - POST /api/deploy {mode:'LIVE_FULL'} → Bot in LIVE schalten
+AUDIT_NEXUS_V9_20260518_0756.md:364:| PAPER→LIVE Switch (`/api/deploy`) | Modus-Validierung ✅ | ❌ | Nur PM2-Log |
+AUDIT_NEXUS_V9_20260518_0756.md:473:- **Beschreibung**: Keine Auth-Middleware für sensible Endpoints (`/api/deploy`, `/api/mode/live`, `/api/kill`, `/api/cfg/set`, `/api/risktier/set`, ML-Endpoints)
+AUDIT_NEXUS_V9_20260518_0756.md:476:- **Empfehlung**: IP-Whitelist + Static-Token-Header für `/api/deploy|mode|kill|cfg|risktier|ml/*`. Auch Tailscale-only-bind als Defense-in-Depth.
+public/index.html:4642:  try{await apiV9('/api/deploy','POST',{mode});const _dc=document.getElementById('deploy-cur');if(_dc)_dc.textContent=mode;log('OK','Deploy Mode: '+mode);}
+public/index.html:7973:    const d = await apiV9('/api/deploy');
+
+--- Pro Treffer ±5 Zeilen Kontext ---
+
+=== AUDIT_NEXUS_V9_20260518_0756.md:13 (±5 Zeilen) ===
+    8: 
+    9: ## EXECUTIVE SUMMARY — TOP-5-RISIKEN
+   10: 
+   11: | # | ID | Severity | Beschreibung |
+   12: |---|----|----------|--------------|
+   13: | 1 | AUD-001 | **KRITISCH** | `/api/deploy`, `/api/mode/live`, `/api/kill` haben KEINE Auth-Middleware — jeder mit Bot-Port-Zugriff kann LIVE schalten oder Bot killen |
+   14: | 2 | AUD-002 | **HOCH** | `getEffectiveDemoEquity()` zählt mbtCommitted doppelt → effectiveTotal ~1239 statt ehrlicher ~1014. Fix-Versuch heute als X gerollt zurück weil peakTotal-Stale Side-Effect (KillSwitch HARD KILL). Braucht koordinierten X+peakTotal-Reset |
+   15: | 3 | AUD-003 | **HOCH** | Order-Send fehlt `clientOrderId` (Idempotenz). Bei Network-Retry möglich Doppel-Order in LIVE-Mode |
+   16: | 4 | AUD-004 | **HOCH** | Reserve wächst NUR aus SINGLE-Trade-Wins (Balance.recordProfit). Grid `profit_acc` (18.94 USDT) und DCA-TP-Hits gehen NICHT durch applyPnL → bei MBT-dominiertem Trading bleibt Reserve permanent klein |
+   17: | 5 | AUD-005 | **MITTEL** | SCORE_FLOOR-Konfiguration ambivalent: CFG.SCORE_FLOOR=0.08, SCORE_FLOOR_OLD=0.04, SCORE_FLOOR_MODE='log_only' → Direction nutzt weiterhin 0.04, 0.08 wird nur geloggt. Doku im Code sagt klar, Verhalten muss Christian explizit kennen |
+   18: 
+
+=== AUDIT_NEXUS_V9_20260518_0756.md:260 (±5 Zeilen) ===
+  255: ## 6. ENDPOINTS & API
+  256: 
+  257: ### Express-Routen
+  258: - **472 Routen total**
+  259: - 6 sensible Routen identifiziert:
+  260:   - `/api/deploy` (Mode-Switch) — Z.14603
+  261:   - `/api/mode/live`, `/api/mode/demo`, `/api/mode/switch`, `/api/mode/toggle` — Z.15968-15988
+  262:   - `/api/kill`, `/api/kill/reset` — Z.13449
+  263:   - `/api/risktier/set`, `/api/risktier/dryrun/enable` — Z.17077-17079
+  264:   - `/api/cfg/set` (kann BRAIN_MODE switchen) — Z.13256
+  265:   - `/api/ml/rollback`, `/api/ml/persist/reset` — Z.14363, 14403
+
+=== AUDIT_NEXUS_V9_20260518_0756.md:282 (±5 Zeilen) ===
+  277: 
+  278: ### Interne Express-Routen
+  279: - **🔴 AUD-001 (KRITISCH)**: KEINE Auth-Middleware für ANY Endpoint
+  280:   - grep für `passport|jwt|express-session|requireAuth|adminOnly|authMiddleware`: **0 matches**
+  281:   - Folge: jede Person mit Port-3000-Zugriff kann:
+  282:     - POST /api/deploy {mode:'LIVE_FULL'} → Bot in LIVE schalten
+  283:     - POST /api/mode/live → DemoEngine.switchToLive()
+  284:     - POST /api/kill → KillSwitch HARD KILL → Bot stoppt
+  285:   - Aktueller Schutz: Bot lauscht nur auf localhost (kein 0.0.0.0 expliziert)? Muss geprüft werden
+  286:   - **Empfehlung**: Mindestens IP-Whitelist + Token-Header für sensitive Routes (NICHT umsetzen jetzt, nur vorschlagen)
+  287: 
+
+=== AUDIT_NEXUS_V9_20260518_0756.md:364 (±5 Zeilen) ===
+  359: 
+  360: ## 9. KRITISCHE-AKTION-GATES
+  361: 
+  362: | Aktion | Gate vorhanden? | Re-Auth? | Audit-Eintrag? |
+  363: |--------|-----------------|----------|----------------|
+  364: | PAPER→LIVE Switch (`/api/deploy`) | Modus-Validierung ✅ | ❌ | Nur PM2-Log |
+  365: | `/api/mode/live` (DemoEngine.switchToLive) | API_KEY-Check + openPositions-Check + StatsCore.liveReady + force-Override | ❌ | Telegram-Alert ✅ |
+  366: | `/api/kill` Manual-Kill | Confirm-Dialog (UI) | ❌ | KillSwitch._hardKill mit MANUAL-reason ✅ |
+  367: | `/api/cfg/set` (BRAIN_MODE Switch) | Whitelist `[shadow,voter,authority]` | ❌ | DB-Persistenz + Log.warn ✅ |
+  368: | `/api/risktier/set` | RiskTier.setTier-Whitelist | ❌ | Log ✅ |
+  369: | `/api/ml/rollback` | nicht geprüft | ❌ | nicht geprüft |
+
+=== AUDIT_NEXUS_V9_20260518_0756.md:473 (±5 Zeilen) ===
+  468: ## VOLLSTÄNDIGE BEFUND-LISTE
+  469: 
+  470: ### AUD-001 — KRITISCH — Security
+  471: - **Datei:Zeile**: server.js (global)
+  472: - **Kategorie**: Security / Endpoint
+  473: - **Beschreibung**: Keine Auth-Middleware für sensible Endpoints (`/api/deploy`, `/api/mode/live`, `/api/kill`, `/api/cfg/set`, `/api/risktier/set`, ML-Endpoints)
+  474: - **Beleg**: `grep -E "passport|jwt|express-session|requireAuth"` → 0 matches
+  475: - **Auswirkung worst case**: Jemand mit Netzwerk-Zugriff auf Port 3000 kann Bot in LIVE schalten, killen, oder Risk auf Maximum stellen
+  476: - **Empfehlung**: IP-Whitelist + Static-Token-Header für `/api/deploy|mode|kill|cfg|risktier|ml/*`. Auch Tailscale-only-bind als Defense-in-Depth.
+  477: - **Freigabe**: ja
+  478: - **Unsicherheit**: nein
+
+=== AUDIT_NEXUS_V9_20260518_0756.md:476 (±5 Zeilen) ===
+  471: - **Datei:Zeile**: server.js (global)
+  472: - **Kategorie**: Security / Endpoint
+  473: - **Beschreibung**: Keine Auth-Middleware für sensible Endpoints (`/api/deploy`, `/api/mode/live`, `/api/kill`, `/api/cfg/set`, `/api/risktier/set`, ML-Endpoints)
+  474: - **Beleg**: `grep -E "passport|jwt|express-session|requireAuth"` → 0 matches
+  475: - **Auswirkung worst case**: Jemand mit Netzwerk-Zugriff auf Port 3000 kann Bot in LIVE schalten, killen, oder Risk auf Maximum stellen
+  476: - **Empfehlung**: IP-Whitelist + Static-Token-Header für `/api/deploy|mode|kill|cfg|risktier|ml/*`. Auch Tailscale-only-bind als Defense-in-Depth.
+  477: - **Freigabe**: ja
+  478: - **Unsicherheit**: nein
+  479: 
+  480: ### AUD-002 — HOCH — Rechnung
+  481: - **Datei:Zeile**: server.js:10125
+
+=== AUDIT_NEXUS_V9_VOLL_20260518_0805.md:243 (±5 Zeilen) ===
+  238: - AUD-VOLL-039 INFO: Trades.create schreibt Audit-Felder ✅
+  239: - AUD-VOLL-040 INFO: Trades.close Idempotenz-Check ✅
+  240: - AUD-VOLL-041 **HOCH**: isDemoTrade Check via strategy='DEMO_UNIFIED' — wenn LIVE-Trade andere strategy hat, KEIN Balance-Update
+  241: - AUD-VOLL-042 INFO: ML-Buffer-Feed asynchron ✅
+  242: - AUD-VOLL-043 MITTEL: ML-Label binary (WIN=2, LOSS=1) ohne HOLD (0) → Action-Bias
+  243: - AUD-VOLL-044 **KRITISCH**: /api/deploy 5 Zeilen ohne Auth/Confirm/Audit
+  244: - AUD-VOLL-045 INFO: /api/research/backtest sauber
+  245: - AUD-VOLL-046 MITTEL: switchToLive 3 Gates aber alle via force=true umgehbar (nur API_KEY hart)
+  246: - AUD-VOLL-047 MITTEL: switchToLive setzt DEPLOY_MODE auto auf LIVE_RESTRICTED ohne Audit-Entry
+  247: - AUD-VOLL-048 INFO: _cycleBusy Lock ✅
+  248: - AUD-VOLL-049 NIEDRIG: nur EXTREME_BEAR blockiert Cycle, EXTREME_VOL nicht
+
+=== AUDIT_NEXUS_V9_VOLL_20260518_0805.md:297 (±5 Zeilen) ===
+  292: 1. **Soll Vollaudit fortgesetzt werden?** Würde mehrere weitere Sessions brauchen — schätzungsweise 4-6 Sessions à 200-Block Reads
+  293: 2. **3-Ebenen-Architektur-Soll vs Ist-6-Familien**: AladdinBrain hat 5 Familien (TREND/MOMENTUM/RISK/SENTIMENT/MICROSTRUCTURE), Soll fordert 6 Kategorien (MARKET_REGIME/SIGNAL/ML_AI/SENTIMENT/RISK/GOVERNANCE). Refactor oder umetikettieren?
+  294: 3. **SCORE_FLOOR_MODE 'log_only'**: Dauer oder Übergang? Wenn Dauer → CFG aufräumen
+  295: 4. **Hyperopt BREAKOUT_HUNT etc. Scheinlogik**: Echte fitnessFn pro Strategy bauen oder Hyperopt-Module strategy-only=SMA dokumentieren?
+  296: 5. **LSTM v5 ist LogReg**: Umbenennen (z.B. `logreg_baseline.js`) oder echtes LSTM via Python-Trainer + .onnx einrichten?
+  297: 6. **/api/deploy Auth-Layer**: Tailscale-only-bind oder Express-Layer-Auth?
+  298: 7. **Worker-Thread-Isolation**: Implementieren (Trading-Logik in Worker)?
+  299: 8. **Audit-Trail-Tabelle**: dedizierte Tabelle für Mode-Switches/Risk-Changes anlegen?
+  300: 
+  301: ---
+  302: 
+
+=== AUDIT_NEXUS_V9_VOLL_20260518_0805.md:71 (±5 Zeilen) ===
+   66: 
+   67: ## EXECUTIVE SUMMARY — TOP-5-RISIKEN
+   68: 
+   69: | # | ID | Severity | Beschreibung |
+   70: |---|------|----------|--------------|
+   71: | 1 | AUD-VOLL-044 / AUD-001 | **KRITISCH** | `/api/deploy` (Z.14603-14610) ändert CFG.DEPLOY_MODE auf 'LIVE_FULL' ohne Auth/Confirm/Audit. 5 Zeilen Code. |
+   72: | 2 | AUD-VOLL-028 | **HOCH** | Security-Middleware (Z.49-75) hat Boot-Gap: `typeof SelfHeal !== 'undefined'` — bis SelfHeal definiert ist, ALLE Requests ohne Rate-Limit + Payload-Check |
+   73: | 3 | AUD-VOLL-035 + AUD-002 | **KRITISCH** | KillSwitch.check (Z.4708-4747) basiert auf getEffectiveDemoEquity → Doppel-Count-Bug vergiftet peakTotal → erste Korrektur löst HARD KILL aus (heute Morgen reproduziert) |
+   74: | 4 | AUD-VOLL-013 / AUD-VOLL-017 | **HOCH** | TIER2-Module Scheinlogik: Hyperopt für BREAKOUT_HUNT optimiert nur SMA-Crossover, LSTM v5 ist Logistic Regression (Name irreführend) |
+   75: | 5 | AUD-VOLL-041 | **HOCH** | Trades.close Z.5482 `isDemoTrade = (trade.strategy === 'DEMO_UNIFIED')` — Wenn je LIVE-Trade mit anderer strategy gespeichert, kein Balance-Update |
+   76: 
+
+=== AUFKLAERUNG_DEPLOY_20260518_0825.txt:1 (±5 Zeilen) ===
+    1: AUFKLAERUNG /api/deploy Patch-Vorbereitung (Phase A, AUD-VOLL-044)
+    2: Zeit: Mo 18 Mai 2026 08:25:59 CEST
+    3: Modus: READ-ONLY
+    4: Output-Path: /Users/christianheilig/NEXUS_CLEAN/AUFKLAERUNG_DEPLOY_20260518_0825.txt
+    5: 
+    6: =================================================================
+
+=== AUFKLAERUNG_DEPLOY_20260518_0825.txt:32 (±5 Zeilen) ===
+   27: 14598:     });
+   28: 14599:   } catch (e) { res.status(500).json({ error: e.message }); }
+   29: 14600: });
+   30: 14601: 
+   31: 14602: // ── DEPLOY MODE ──
+   32: 14603: app.post('/api/deploy', (req,res) => {
+   33: 14604:   const valid = ['PAPER','DRY_LIVE','LIVE_RESTRICTED','LIVE_FULL'];
+   34: 14605:   if (!valid.includes(req.body?.mode)) return res.status(400).json({ error:'Invalid mode', valid });
+   35: 14606:   CFG.DEPLOY_MODE = req.body.mode;
+   36: 14607:   NoTrade.gates.deployModeAllows = ['DRY_LIVE','LIVE_RESTRICTED','LIVE_FULL'].includes(CFG.DEPLOY_MODE);
+   37: 14608:   Log.info('DEPLOY', `Mode: ${CFG.DEPLOY_MODE}`);
+
+=== AUFKLAERUNG_DEPLOY_20260518_0825.txt:72 (±5 Zeilen) ===
+   67: 14638:   const totalPnL = trades.reduce((s,t)=>s+t.pnl,0);
+   68: 14639:   const pnlArr  = trades.map(t=>t.pnl);
+   69: 14640:   res.json({
+   70: 
+   71: =================================================================
+   72: 2. AUFRUFER IM REPO — grep -rn '/api/deploy' . (alle Treffer)
+   73: =================================================================
+   74: 
+   75: --- grep -rn (alle Treffer, exkl. .bak/.claude/node_modules) ---
+   76: AUFKLAERUNG_DEPLOY_20260518_0825.txt:1:AUFKLAERUNG /api/deploy Patch-Vorbereitung (Phase A, AUD-VOLL-044)
+   77: AUFKLAERUNG_DEPLOY_20260518_0825.txt:32:14603: app.post('/api/deploy', (req,res) => {
+
+=== AUFKLAERUNG_DEPLOY_20260518_0825.txt:76 (±5 Zeilen) ===
+   71: =================================================================
+   72: 2. AUFRUFER IM REPO — grep -rn '/api/deploy' . (alle Treffer)
+   73: =================================================================
+   74: 
+   75: --- grep -rn (alle Treffer, exkl. .bak/.claude/node_modules) ---
+   76: AUFKLAERUNG_DEPLOY_20260518_0825.txt:1:AUFKLAERUNG /api/deploy Patch-Vorbereitung (Phase A, AUD-VOLL-044)
+   77: AUFKLAERUNG_DEPLOY_20260518_0825.txt:32:14603: app.post('/api/deploy', (req,res) => {
+   78: AUFKLAERUNG_DEPLOY_20260518_0825.txt:72:2. AUFRUFER IM REPO — grep -rn '/api/deploy' . (alle Treffer)
+   79: server.js:10433:      // Aktivierung NUR mit separater Christian-F2 via POST /api/deploy {mode:'DRY_LIVE'}.
+   80: server.js:14603:app.post('/api/deploy', (req,res) => {
+   81: AUDIT_NEXUS_V9_VOLL_20260518_0805.md:71:| 1 | AUD-VOLL-044 / AUD-001 | **KRITISCH** | `/api/deploy` (Z.14603-14610) ändert CFG.DEPLOY_MODE auf 'LIVE_FULL' ohne Auth/Confirm/Audit. 5 Zeilen Code. |
+
+=== AUFKLAERUNG_DEPLOY_20260518_0825.txt:77 (±5 Zeilen) ===
+   72: 2. AUFRUFER IM REPO — grep -rn '/api/deploy' . (alle Treffer)
+   73: =================================================================
+   74: 
+   75: --- grep -rn (alle Treffer, exkl. .bak/.claude/node_modules) ---
+   76: AUFKLAERUNG_DEPLOY_20260518_0825.txt:1:AUFKLAERUNG /api/deploy Patch-Vorbereitung (Phase A, AUD-VOLL-044)
+   77: AUFKLAERUNG_DEPLOY_20260518_0825.txt:32:14603: app.post('/api/deploy', (req,res) => {
+   78: AUFKLAERUNG_DEPLOY_20260518_0825.txt:72:2. AUFRUFER IM REPO — grep -rn '/api/deploy' . (alle Treffer)
+   79: server.js:10433:      // Aktivierung NUR mit separater Christian-F2 via POST /api/deploy {mode:'DRY_LIVE'}.
+   80: server.js:14603:app.post('/api/deploy', (req,res) => {
+   81: AUDIT_NEXUS_V9_VOLL_20260518_0805.md:71:| 1 | AUD-VOLL-044 / AUD-001 | **KRITISCH** | `/api/deploy` (Z.14603-14610) ändert CFG.DEPLOY_MODE auf 'LIVE_FULL' ohne Auth/Confirm/Audit. 5 Zeilen Code. |
+   82: AUDIT_NEXUS_V9_VOLL_20260518_0805.md:243:- AUD-VOLL-044 **KRITISCH**: /api/deploy 5 Zeilen ohne Auth/Confirm/Audit
+
+=== AUFKLAERUNG_DEPLOY_20260518_0825.txt:78 (±5 Zeilen) ===
+   73: =================================================================
+   74: 
+   75: --- grep -rn (alle Treffer, exkl. .bak/.claude/node_modules) ---
+   76: AUFKLAERUNG_DEPLOY_20260518_0825.txt:1:AUFKLAERUNG /api/deploy Patch-Vorbereitung (Phase A, AUD-VOLL-044)
+   77: AUFKLAERUNG_DEPLOY_20260518_0825.txt:32:14603: app.post('/api/deploy', (req,res) => {
+   78: AUFKLAERUNG_DEPLOY_20260518_0825.txt:72:2. AUFRUFER IM REPO — grep -rn '/api/deploy' . (alle Treffer)
+   79: server.js:10433:      // Aktivierung NUR mit separater Christian-F2 via POST /api/deploy {mode:'DRY_LIVE'}.
+   80: server.js:14603:app.post('/api/deploy', (req,res) => {
+   81: AUDIT_NEXUS_V9_VOLL_20260518_0805.md:71:| 1 | AUD-VOLL-044 / AUD-001 | **KRITISCH** | `/api/deploy` (Z.14603-14610) ändert CFG.DEPLOY_MODE auf 'LIVE_FULL' ohne Auth/Confirm/Audit. 5 Zeilen Code. |
+   82: AUDIT_NEXUS_V9_VOLL_20260518_0805.md:243:- AUD-VOLL-044 **KRITISCH**: /api/deploy 5 Zeilen ohne Auth/Confirm/Audit
+   83: AUDIT_NEXUS_V9_VOLL_20260518_0805.md:297:6. **/api/deploy Auth-Layer**: Tailscale-only-bind oder Express-Layer-Auth?
+
+=== AUFKLAERUNG_DEPLOY_20260518_0825.txt:79 (±5 Zeilen) ===
+   74: 
+   75: --- grep -rn (alle Treffer, exkl. .bak/.claude/node_modules) ---
+   76: AUFKLAERUNG_DEPLOY_20260518_0825.txt:1:AUFKLAERUNG /api/deploy Patch-Vorbereitung (Phase A, AUD-VOLL-044)
+   77: AUFKLAERUNG_DEPLOY_20260518_0825.txt:32:14603: app.post('/api/deploy', (req,res) => {
+   78: AUFKLAERUNG_DEPLOY_20260518_0825.txt:72:2. AUFRUFER IM REPO — grep -rn '/api/deploy' . (alle Treffer)
+   79: server.js:10433:      // Aktivierung NUR mit separater Christian-F2 via POST /api/deploy {mode:'DRY_LIVE'}.
+   80: server.js:14603:app.post('/api/deploy', (req,res) => {
+   81: AUDIT_NEXUS_V9_VOLL_20260518_0805.md:71:| 1 | AUD-VOLL-044 / AUD-001 | **KRITISCH** | `/api/deploy` (Z.14603-14610) ändert CFG.DEPLOY_MODE auf 'LIVE_FULL' ohne Auth/Confirm/Audit. 5 Zeilen Code. |
+   82: AUDIT_NEXUS_V9_VOLL_20260518_0805.md:243:- AUD-VOLL-044 **KRITISCH**: /api/deploy 5 Zeilen ohne Auth/Confirm/Audit
+   83: AUDIT_NEXUS_V9_VOLL_20260518_0805.md:297:6. **/api/deploy Auth-Layer**: Tailscale-only-bind oder Express-Layer-Auth?
+   84: AUDIT_NEXUS_V9_20260518_0756.md:13:| 1 | AUD-001 | **KRITISCH** | `/api/deploy`, `/api/mode/live`, `/api/kill` haben KEINE Auth-Middleware — jeder mit Bot-Port-Zugriff kann LIVE schalten oder Bot killen |
+
+=== AUFKLAERUNG_DEPLOY_20260518_0825.txt:80 (±5 Zeilen) ===
+   75: --- grep -rn (alle Treffer, exkl. .bak/.claude/node_modules) ---
+   76: AUFKLAERUNG_DEPLOY_20260518_0825.txt:1:AUFKLAERUNG /api/deploy Patch-Vorbereitung (Phase A, AUD-VOLL-044)
+   77: AUFKLAERUNG_DEPLOY_20260518_0825.txt:32:14603: app.post('/api/deploy', (req,res) => {
+   78: AUFKLAERUNG_DEPLOY_20260518_0825.txt:72:2. AUFRUFER IM REPO — grep -rn '/api/deploy' . (alle Treffer)
+   79: server.js:10433:      // Aktivierung NUR mit separater Christian-F2 via POST /api/deploy {mode:'DRY_LIVE'}.
+   80: server.js:14603:app.post('/api/deploy', (req,res) => {
+   81: AUDIT_NEXUS_V9_VOLL_20260518_0805.md:71:| 1 | AUD-VOLL-044 / AUD-001 | **KRITISCH** | `/api/deploy` (Z.14603-14610) ändert CFG.DEPLOY_MODE auf 'LIVE_FULL' ohne Auth/Confirm/Audit. 5 Zeilen Code. |
+   82: AUDIT_NEXUS_V9_VOLL_20260518_0805.md:243:- AUD-VOLL-044 **KRITISCH**: /api/deploy 5 Zeilen ohne Auth/Confirm/Audit
+   83: AUDIT_NEXUS_V9_VOLL_20260518_0805.md:297:6. **/api/deploy Auth-Layer**: Tailscale-only-bind oder Express-Layer-Auth?
+   84: AUDIT_NEXUS_V9_20260518_0756.md:13:| 1 | AUD-001 | **KRITISCH** | `/api/deploy`, `/api/mode/live`, `/api/kill` haben KEINE Auth-Middleware — jeder mit Bot-Port-Zugriff kann LIVE schalten oder Bot killen |
+   85: AUDIT_NEXUS_V9_20260518_0756.md:260:  - `/api/deploy` (Mode-Switch) — Z.14603
+
+=== AUFKLAERUNG_DEPLOY_20260518_0825.txt:81 (±5 Zeilen) ===
+   76: AUFKLAERUNG_DEPLOY_20260518_0825.txt:1:AUFKLAERUNG /api/deploy Patch-Vorbereitung (Phase A, AUD-VOLL-044)
+   77: AUFKLAERUNG_DEPLOY_20260518_0825.txt:32:14603: app.post('/api/deploy', (req,res) => {
+   78: AUFKLAERUNG_DEPLOY_20260518_0825.txt:72:2. AUFRUFER IM REPO — grep -rn '/api/deploy' . (alle Treffer)
+   79: server.js:10433:      // Aktivierung NUR mit separater Christian-F2 via POST /api/deploy {mode:'DRY_LIVE'}.
+   80: server.js:14603:app.post('/api/deploy', (req,res) => {
+   81: AUDIT_NEXUS_V9_VOLL_20260518_0805.md:71:| 1 | AUD-VOLL-044 / AUD-001 | **KRITISCH** | `/api/deploy` (Z.14603-14610) ändert CFG.DEPLOY_MODE auf 'LIVE_FULL' ohne Auth/Confirm/Audit. 5 Zeilen Code. |
+   82: AUDIT_NEXUS_V9_VOLL_20260518_0805.md:243:- AUD-VOLL-044 **KRITISCH**: /api/deploy 5 Zeilen ohne Auth/Confirm/Audit
+   83: AUDIT_NEXUS_V9_VOLL_20260518_0805.md:297:6. **/api/deploy Auth-Layer**: Tailscale-only-bind oder Express-Layer-Auth?
+   84: AUDIT_NEXUS_V9_20260518_0756.md:13:| 1 | AUD-001 | **KRITISCH** | `/api/deploy`, `/api/mode/live`, `/api/kill` haben KEINE Auth-Middleware — jeder mit Bot-Port-Zugriff kann LIVE schalten oder Bot killen |
+   85: AUDIT_NEXUS_V9_20260518_0756.md:260:  - `/api/deploy` (Mode-Switch) — Z.14603
+   86: AUDIT_NEXUS_V9_20260518_0756.md:282:    - POST /api/deploy {mode:'LIVE_FULL'} → Bot in LIVE schalten
+
+=== AUFKLAERUNG_DEPLOY_20260518_0825.txt:82 (±5 Zeilen) ===
+   77: AUFKLAERUNG_DEPLOY_20260518_0825.txt:32:14603: app.post('/api/deploy', (req,res) => {
+   78: AUFKLAERUNG_DEPLOY_20260518_0825.txt:72:2. AUFRUFER IM REPO — grep -rn '/api/deploy' . (alle Treffer)
+   79: server.js:10433:      // Aktivierung NUR mit separater Christian-F2 via POST /api/deploy {mode:'DRY_LIVE'}.
+   80: server.js:14603:app.post('/api/deploy', (req,res) => {
+   81: AUDIT_NEXUS_V9_VOLL_20260518_0805.md:71:| 1 | AUD-VOLL-044 / AUD-001 | **KRITISCH** | `/api/deploy` (Z.14603-14610) ändert CFG.DEPLOY_MODE auf 'LIVE_FULL' ohne Auth/Confirm/Audit. 5 Zeilen Code. |
+   82: AUDIT_NEXUS_V9_VOLL_20260518_0805.md:243:- AUD-VOLL-044 **KRITISCH**: /api/deploy 5 Zeilen ohne Auth/Confirm/Audit
+   83: AUDIT_NEXUS_V9_VOLL_20260518_0805.md:297:6. **/api/deploy Auth-Layer**: Tailscale-only-bind oder Express-Layer-Auth?
+   84: AUDIT_NEXUS_V9_20260518_0756.md:13:| 1 | AUD-001 | **KRITISCH** | `/api/deploy`, `/api/mode/live`, `/api/kill` haben KEINE Auth-Middleware — jeder mit Bot-Port-Zugriff kann LIVE schalten oder Bot killen |
+   85: AUDIT_NEXUS_V9_20260518_0756.md:260:  - `/api/deploy` (Mode-Switch) — Z.14603
+   86: AUDIT_NEXUS_V9_20260518_0756.md:282:    - POST /api/deploy {mode:'LIVE_FULL'} → Bot in LIVE schalten
+   87: AUDIT_NEXUS_V9_20260518_0756.md:364:| PAPER→LIVE Switch (`/api/deploy`) | Modus-Validierung ✅ | ❌ | Nur PM2-Log |
+
+=== AUFKLAERUNG_DEPLOY_20260518_0825.txt:83 (±5 Zeilen) ===
+   78: AUFKLAERUNG_DEPLOY_20260518_0825.txt:72:2. AUFRUFER IM REPO — grep -rn '/api/deploy' . (alle Treffer)
+   79: server.js:10433:      // Aktivierung NUR mit separater Christian-F2 via POST /api/deploy {mode:'DRY_LIVE'}.
+   80: server.js:14603:app.post('/api/deploy', (req,res) => {
+   81: AUDIT_NEXUS_V9_VOLL_20260518_0805.md:71:| 1 | AUD-VOLL-044 / AUD-001 | **KRITISCH** | `/api/deploy` (Z.14603-14610) ändert CFG.DEPLOY_MODE auf 'LIVE_FULL' ohne Auth/Confirm/Audit. 5 Zeilen Code. |
+   82: AUDIT_NEXUS_V9_VOLL_20260518_0805.md:243:- AUD-VOLL-044 **KRITISCH**: /api/deploy 5 Zeilen ohne Auth/Confirm/Audit
+   83: AUDIT_NEXUS_V9_VOLL_20260518_0805.md:297:6. **/api/deploy Auth-Layer**: Tailscale-only-bind oder Express-Layer-Auth?
+   84: AUDIT_NEXUS_V9_20260518_0756.md:13:| 1 | AUD-001 | **KRITISCH** | `/api/deploy`, `/api/mode/live`, `/api/kill` haben KEINE Auth-Middleware — jeder mit Bot-Port-Zugriff kann LIVE schalten oder Bot killen |
+   85: AUDIT_NEXUS_V9_20260518_0756.md:260:  - `/api/deploy` (Mode-Switch) — Z.14603
+   86: AUDIT_NEXUS_V9_20260518_0756.md:282:    - POST /api/deploy {mode:'LIVE_FULL'} → Bot in LIVE schalten
+   87: AUDIT_NEXUS_V9_20260518_0756.md:364:| PAPER→LIVE Switch (`/api/deploy`) | Modus-Validierung ✅ | ❌ | Nur PM2-Log |
+   88: AUDIT_NEXUS_V9_20260518_0756.md:473:- **Beschreibung**: Keine Auth-Middleware für sensible Endpoints (`/api/deploy`, `/api/mode/live`, `/api/kill`, `/api/cfg/set`, `/api/risktier/set`, ML-Endpoints)
+
+=== AUFKLAERUNG_DEPLOY_20260518_0825.txt:84 (±5 Zeilen) ===
+   79: server.js:10433:      // Aktivierung NUR mit separater Christian-F2 via POST /api/deploy {mode:'DRY_LIVE'}.
+   80: server.js:14603:app.post('/api/deploy', (req,res) => {
+   81: AUDIT_NEXUS_V9_VOLL_20260518_0805.md:71:| 1 | AUD-VOLL-044 / AUD-001 | **KRITISCH** | `/api/deploy` (Z.14603-14610) ändert CFG.DEPLOY_MODE auf 'LIVE_FULL' ohne Auth/Confirm/Audit. 5 Zeilen Code. |
+   82: AUDIT_NEXUS_V9_VOLL_20260518_0805.md:243:- AUD-VOLL-044 **KRITISCH**: /api/deploy 5 Zeilen ohne Auth/Confirm/Audit
+   83: AUDIT_NEXUS_V9_VOLL_20260518_0805.md:297:6. **/api/deploy Auth-Layer**: Tailscale-only-bind oder Express-Layer-Auth?
+   84: AUDIT_NEXUS_V9_20260518_0756.md:13:| 1 | AUD-001 | **KRITISCH** | `/api/deploy`, `/api/mode/live`, `/api/kill` haben KEINE Auth-Middleware — jeder mit Bot-Port-Zugriff kann LIVE schalten oder Bot killen |
+   85: AUDIT_NEXUS_V9_20260518_0756.md:260:  - `/api/deploy` (Mode-Switch) — Z.14603
+   86: AUDIT_NEXUS_V9_20260518_0756.md:282:    - POST /api/deploy {mode:'LIVE_FULL'} → Bot in LIVE schalten
+   87: AUDIT_NEXUS_V9_20260518_0756.md:364:| PAPER→LIVE Switch (`/api/deploy`) | Modus-Validierung ✅ | ❌ | Nur PM2-Log |
+   88: AUDIT_NEXUS_V9_20260518_0756.md:473:- **Beschreibung**: Keine Auth-Middleware für sensible Endpoints (`/api/deploy`, `/api/mode/live`, `/api/kill`, `/api/cfg/set`, `/api/risktier/set`, ML-Endpoints)
+   89: AUDIT_NEXUS_V9_20260518_0756.md:476:- **Empfehlung**: IP-Whitelist + Static-Token-Header für `/api/deploy|mode|kill|cfg|risktier|ml/*`. Auch Tailscale-only-bind als Defense-in-Depth.
+
+=== AUFKLAERUNG_DEPLOY_20260518_0825.txt:85 (±5 Zeilen) ===
+   80: server.js:14603:app.post('/api/deploy', (req,res) => {
+   81: AUDIT_NEXUS_V9_VOLL_20260518_0805.md:71:| 1 | AUD-VOLL-044 / AUD-001 | **KRITISCH** | `/api/deploy` (Z.14603-14610) ändert CFG.DEPLOY_MODE auf 'LIVE_FULL' ohne Auth/Confirm/Audit. 5 Zeilen Code. |
+   82: AUDIT_NEXUS_V9_VOLL_20260518_0805.md:243:- AUD-VOLL-044 **KRITISCH**: /api/deploy 5 Zeilen ohne Auth/Confirm/Audit
+   83: AUDIT_NEXUS_V9_VOLL_20260518_0805.md:297:6. **/api/deploy Auth-Layer**: Tailscale-only-bind oder Express-Layer-Auth?
+   84: AUDIT_NEXUS_V9_20260518_0756.md:13:| 1 | AUD-001 | **KRITISCH** | `/api/deploy`, `/api/mode/live`, `/api/kill` haben KEINE Auth-Middleware — jeder mit Bot-Port-Zugriff kann LIVE schalten oder Bot killen |
+   85: AUDIT_NEXUS_V9_20260518_0756.md:260:  - `/api/deploy` (Mode-Switch) — Z.14603
+   86: AUDIT_NEXUS_V9_20260518_0756.md:282:    - POST /api/deploy {mode:'LIVE_FULL'} → Bot in LIVE schalten
+   87: AUDIT_NEXUS_V9_20260518_0756.md:364:| PAPER→LIVE Switch (`/api/deploy`) | Modus-Validierung ✅ | ❌ | Nur PM2-Log |
+   88: AUDIT_NEXUS_V9_20260518_0756.md:473:- **Beschreibung**: Keine Auth-Middleware für sensible Endpoints (`/api/deploy`, `/api/mode/live`, `/api/kill`, `/api/cfg/set`, `/api/risktier/set`, ML-Endpoints)
+   89: AUDIT_NEXUS_V9_20260518_0756.md:476:- **Empfehlung**: IP-Whitelist + Static-Token-Header für `/api/deploy|mode|kill|cfg|risktier|ml/*`. Auch Tailscale-only-bind als Defense-in-Depth.
+   90: public/index.html:4642:  try{await apiV9('/api/deploy','POST',{mode});const _dc=document.getElementById('deploy-cur');if(_dc)_dc.textContent=mode;log('OK','Deploy Mode: '+mode);}
+
+=== AUFKLAERUNG_DEPLOY_20260518_0825.txt:86 (±5 Zeilen) ===
+   81: AUDIT_NEXUS_V9_VOLL_20260518_0805.md:71:| 1 | AUD-VOLL-044 / AUD-001 | **KRITISCH** | `/api/deploy` (Z.14603-14610) ändert CFG.DEPLOY_MODE auf 'LIVE_FULL' ohne Auth/Confirm/Audit. 5 Zeilen Code. |
+   82: AUDIT_NEXUS_V9_VOLL_20260518_0805.md:243:- AUD-VOLL-044 **KRITISCH**: /api/deploy 5 Zeilen ohne Auth/Confirm/Audit
+   83: AUDIT_NEXUS_V9_VOLL_20260518_0805.md:297:6. **/api/deploy Auth-Layer**: Tailscale-only-bind oder Express-Layer-Auth?
+   84: AUDIT_NEXUS_V9_20260518_0756.md:13:| 1 | AUD-001 | **KRITISCH** | `/api/deploy`, `/api/mode/live`, `/api/kill` haben KEINE Auth-Middleware — jeder mit Bot-Port-Zugriff kann LIVE schalten oder Bot killen |
+   85: AUDIT_NEXUS_V9_20260518_0756.md:260:  - `/api/deploy` (Mode-Switch) — Z.14603
+   86: AUDIT_NEXUS_V9_20260518_0756.md:282:    - POST /api/deploy {mode:'LIVE_FULL'} → Bot in LIVE schalten
+   87: AUDIT_NEXUS_V9_20260518_0756.md:364:| PAPER→LIVE Switch (`/api/deploy`) | Modus-Validierung ✅ | ❌ | Nur PM2-Log |
+   88: AUDIT_NEXUS_V9_20260518_0756.md:473:- **Beschreibung**: Keine Auth-Middleware für sensible Endpoints (`/api/deploy`, `/api/mode/live`, `/api/kill`, `/api/cfg/set`, `/api/risktier/set`, ML-Endpoints)
+   89: AUDIT_NEXUS_V9_20260518_0756.md:476:- **Empfehlung**: IP-Whitelist + Static-Token-Header für `/api/deploy|mode|kill|cfg|risktier|ml/*`. Auch Tailscale-only-bind als Defense-in-Depth.
+   90: public/index.html:4642:  try{await apiV9('/api/deploy','POST',{mode});const _dc=document.getElementById('deploy-cur');if(_dc)_dc.textContent=mode;log('OK','Deploy Mode: '+mode);}
+   91: public/index.html:7973:    const d = await apiV9('/api/deploy');
+
+=== AUFKLAERUNG_DEPLOY_20260518_0825.txt:87 (±5 Zeilen) ===
+   82: AUDIT_NEXUS_V9_VOLL_20260518_0805.md:243:- AUD-VOLL-044 **KRITISCH**: /api/deploy 5 Zeilen ohne Auth/Confirm/Audit
+   83: AUDIT_NEXUS_V9_VOLL_20260518_0805.md:297:6. **/api/deploy Auth-Layer**: Tailscale-only-bind oder Express-Layer-Auth?
+   84: AUDIT_NEXUS_V9_20260518_0756.md:13:| 1 | AUD-001 | **KRITISCH** | `/api/deploy`, `/api/mode/live`, `/api/kill` haben KEINE Auth-Middleware — jeder mit Bot-Port-Zugriff kann LIVE schalten oder Bot killen |
+   85: AUDIT_NEXUS_V9_20260518_0756.md:260:  - `/api/deploy` (Mode-Switch) — Z.14603
+   86: AUDIT_NEXUS_V9_20260518_0756.md:282:    - POST /api/deploy {mode:'LIVE_FULL'} → Bot in LIVE schalten
+   87: AUDIT_NEXUS_V9_20260518_0756.md:364:| PAPER→LIVE Switch (`/api/deploy`) | Modus-Validierung ✅ | ❌ | Nur PM2-Log |
+   88: AUDIT_NEXUS_V9_20260518_0756.md:473:- **Beschreibung**: Keine Auth-Middleware für sensible Endpoints (`/api/deploy`, `/api/mode/live`, `/api/kill`, `/api/cfg/set`, `/api/risktier/set`, ML-Endpoints)
+   89: AUDIT_NEXUS_V9_20260518_0756.md:476:- **Empfehlung**: IP-Whitelist + Static-Token-Header für `/api/deploy|mode|kill|cfg|risktier|ml/*`. Auch Tailscale-only-bind als Defense-in-Depth.
+   90: public/index.html:4642:  try{await apiV9('/api/deploy','POST',{mode});const _dc=document.getElementById('deploy-cur');if(_dc)_dc.textContent=mode;log('OK','Deploy Mode: '+mode);}
+   91: public/index.html:7973:    const d = await apiV9('/api/deploy');
+   92: 
+
+=== AUFKLAERUNG_DEPLOY_20260518_0825.txt:88 (±5 Zeilen) ===
+   83: AUDIT_NEXUS_V9_VOLL_20260518_0805.md:297:6. **/api/deploy Auth-Layer**: Tailscale-only-bind oder Express-Layer-Auth?
+   84: AUDIT_NEXUS_V9_20260518_0756.md:13:| 1 | AUD-001 | **KRITISCH** | `/api/deploy`, `/api/mode/live`, `/api/kill` haben KEINE Auth-Middleware — jeder mit Bot-Port-Zugriff kann LIVE schalten oder Bot killen |
+   85: AUDIT_NEXUS_V9_20260518_0756.md:260:  - `/api/deploy` (Mode-Switch) — Z.14603
+   86: AUDIT_NEXUS_V9_20260518_0756.md:282:    - POST /api/deploy {mode:'LIVE_FULL'} → Bot in LIVE schalten
+   87: AUDIT_NEXUS_V9_20260518_0756.md:364:| PAPER→LIVE Switch (`/api/deploy`) | Modus-Validierung ✅ | ❌ | Nur PM2-Log |
+   88: AUDIT_NEXUS_V9_20260518_0756.md:473:- **Beschreibung**: Keine Auth-Middleware für sensible Endpoints (`/api/deploy`, `/api/mode/live`, `/api/kill`, `/api/cfg/set`, `/api/risktier/set`, ML-Endpoints)
+   89: AUDIT_NEXUS_V9_20260518_0756.md:476:- **Empfehlung**: IP-Whitelist + Static-Token-Header für `/api/deploy|mode|kill|cfg|risktier|ml/*`. Auch Tailscale-only-bind als Defense-in-Depth.
+   90: public/index.html:4642:  try{await apiV9('/api/deploy','POST',{mode});const _dc=document.getElementById('deploy-cur');if(_dc)_dc.textContent=mode;log('OK','Deploy Mode: '+mode);}
+   91: public/index.html:7973:    const d = await apiV9('/api/deploy');
+   92: 
+   93: --- Pro Treffer ±5 Zeilen Kontext ---
+
+=== AUFKLAERUNG_DEPLOY_20260518_0825.txt:89 (±5 Zeilen) ===
+   84: AUDIT_NEXUS_V9_20260518_0756.md:13:| 1 | AUD-001 | **KRITISCH** | `/api/deploy`, `/api/mode/live`, `/api/kill` haben KEINE Auth-Middleware — jeder mit Bot-Port-Zugriff kann LIVE schalten oder Bot killen |
+   85: AUDIT_NEXUS_V9_20260518_0756.md:260:  - `/api/deploy` (Mode-Switch) — Z.14603
+   86: AUDIT_NEXUS_V9_20260518_0756.md:282:    - POST /api/deploy {mode:'LIVE_FULL'} → Bot in LIVE schalten
+   87: AUDIT_NEXUS_V9_20260518_0756.md:364:| PAPER→LIVE Switch (`/api/deploy`) | Modus-Validierung ✅ | ❌ | Nur PM2-Log |
+   88: AUDIT_NEXUS_V9_20260518_0756.md:473:- **Beschreibung**: Keine Auth-Middleware für sensible Endpoints (`/api/deploy`, `/api/mode/live`, `/api/kill`, `/api/cfg/set`, `/api/risktier/set`, ML-Endpoints)
+   89: AUDIT_NEXUS_V9_20260518_0756.md:476:- **Empfehlung**: IP-Whitelist + Static-Token-Header für `/api/deploy|mode|kill|cfg|risktier|ml/*`. Auch Tailscale-only-bind als Defense-in-Depth.
+   90: public/index.html:4642:  try{await apiV9('/api/deploy','POST',{mode});const _dc=document.getElementById('deploy-cur');if(_dc)_dc.textContent=mode;log('OK','Deploy Mode: '+mode);}
+   91: public/index.html:7973:    const d = await apiV9('/api/deploy');
+   92: 
+   93: --- Pro Treffer ±5 Zeilen Kontext ---
+   94: 
+
+=== AUFKLAERUNG_DEPLOY_20260518_0825.txt:90 (±5 Zeilen) ===
+   85: AUDIT_NEXUS_V9_20260518_0756.md:260:  - `/api/deploy` (Mode-Switch) — Z.14603
+   86: AUDIT_NEXUS_V9_20260518_0756.md:282:    - POST /api/deploy {mode:'LIVE_FULL'} → Bot in LIVE schalten
+   87: AUDIT_NEXUS_V9_20260518_0756.md:364:| PAPER→LIVE Switch (`/api/deploy`) | Modus-Validierung ✅ | ❌ | Nur PM2-Log |
+   88: AUDIT_NEXUS_V9_20260518_0756.md:473:- **Beschreibung**: Keine Auth-Middleware für sensible Endpoints (`/api/deploy`, `/api/mode/live`, `/api/kill`, `/api/cfg/set`, `/api/risktier/set`, ML-Endpoints)
+   89: AUDIT_NEXUS_V9_20260518_0756.md:476:- **Empfehlung**: IP-Whitelist + Static-Token-Header für `/api/deploy|mode|kill|cfg|risktier|ml/*`. Auch Tailscale-only-bind als Defense-in-Depth.
+   90: public/index.html:4642:  try{await apiV9('/api/deploy','POST',{mode});const _dc=document.getElementById('deploy-cur');if(_dc)_dc.textContent=mode;log('OK','Deploy Mode: '+mode);}
+   91: public/index.html:7973:    const d = await apiV9('/api/deploy');
+   92: 
+   93: --- Pro Treffer ±5 Zeilen Kontext ---
+   94: 
+   95: === AUDIT_NEXUS_V9_20260518_0756.md:13 (±5 Zeilen) ===
+
+=== AUFKLAERUNG_DEPLOY_20260518_0825.txt:91 (±5 Zeilen) ===
+   86: AUDIT_NEXUS_V9_20260518_0756.md:282:    - POST /api/deploy {mode:'LIVE_FULL'} → Bot in LIVE schalten
+   87: AUDIT_NEXUS_V9_20260518_0756.md:364:| PAPER→LIVE Switch (`/api/deploy`) | Modus-Validierung ✅ | ❌ | Nur PM2-Log |
+   88: AUDIT_NEXUS_V9_20260518_0756.md:473:- **Beschreibung**: Keine Auth-Middleware für sensible Endpoints (`/api/deploy`, `/api/mode/live`, `/api/kill`, `/api/cfg/set`, `/api/risktier/set`, ML-Endpoints)
+   89: AUDIT_NEXUS_V9_20260518_0756.md:476:- **Empfehlung**: IP-Whitelist + Static-Token-Header für `/api/deploy|mode|kill|cfg|risktier|ml/*`. Auch Tailscale-only-bind als Defense-in-Depth.
+   90: public/index.html:4642:  try{await apiV9('/api/deploy','POST',{mode});const _dc=document.getElementById('deploy-cur');if(_dc)_dc.textContent=mode;log('OK','Deploy Mode: '+mode);}
+   91: public/index.html:7973:    const d = await apiV9('/api/deploy');
+   92: 
+   93: --- Pro Treffer ±5 Zeilen Kontext ---
+   94: 
+   95: === AUDIT_NEXUS_V9_20260518_0756.md:13 (±5 Zeilen) ===
+   96:     8: 
+
+=== public/index.html:4642 (±5 Zeilen) ===
+ 4637:       log('ERR','Order fehlgeschlagen via Backend: '+e.message);
+ 4638:     }
+ 4639:   }else{log('WARN','Proxy nicht verbunden → Manuell ausführen');log('INFO',t.pair+' '+t.side.toUpperCase()+' '+t.qty);}
+ 4640: }
+ 4641: async function setDeployMode(mode){
+ 4642:   try{await apiV9('/api/deploy','POST',{mode});const _dc=document.getElementById('deploy-cur');if(_dc)_dc.textContent=mode;log('OK','Deploy Mode: '+mode);}
+ 4643:   catch{log('WARN','Proxy offline');}
+ 4644: }
+ 4645: 
+ 4646: // STREAK
+ 4647: function recTrade(r){S.history.unshift({result:r,pair:S.pair,time:Date.now()});if(S.history.length>50)S.history.pop();try{localStorage.setItem('nx_hist',JSON.stringify(S.history));}catch{}calcSeries();updateStreakUI();log(r==='win'?'OK':'WARN','Trade: '+r.toUpperCase());}
+
+=== public/index.html:7973 (±5 Zeilen) ===
+ 7968:   } catch(e) { console.warn('Gates:', e.message); }
+ 7969: }
+ 7970: 
+ 7971: async function loadManuellDeploy() {
+ 7972:   try {
+ 7973:     const d = await apiV9('/api/deploy');
+ 7974:     const el = document.getElementById('manuell-deploy');
+ 7975:     if (el) { el.textContent = d.mode||'—'; }
+ 7976:   } catch(e) {}
+ 7977: }
+ 7978: 
+
+=== server.js:10433 (±5 Zeilen) ===
+10428: 
+10429:   // ── LIVE: echter Bitget-Call
+10430:   async _liveFill(symbol, direction, sizeUSDT, referencePrice, opts, t0) {
+10431:     try {
+10432:       // C.3 [14.05.2026] DRY_LIVE: echte Bitget-API für Connectivity-Test, ABER kein placeSportOrder.
+10433:       // Aktivierung NUR mit separater Christian-F2 via POST /api/deploy {mode:'DRY_LIVE'}.
+10434:       if (CFG.DEPLOY_MODE === 'DRY_LIVE') {
+10435:         // Echte API-Latenz simulieren: ticker + orderbook fetchen (Bitget public-API)
+10436:         const ticker = await Bitget.fetchTicker(symbol).catch(() => null);
+10437:         const ob = await Bitget.fetchOrderbook(symbol).catch(() => null);
+10438:         let slipPct = 0.0002;
+
+=== server.js:14603 (±5 Zeilen) ===
+14598:     });
+14599:   } catch (e) { res.status(500).json({ error: e.message }); }
+14600: });
+14601: 
+14602: // ── DEPLOY MODE ──
+14603: app.post('/api/deploy', (req,res) => {
+14604:   const valid = ['PAPER','DRY_LIVE','LIVE_RESTRICTED','LIVE_FULL'];
+14605:   if (!valid.includes(req.body?.mode)) return res.status(400).json({ error:'Invalid mode', valid });
+14606:   CFG.DEPLOY_MODE = req.body.mode;
+14607:   NoTrade.gates.deployModeAllows = ['DRY_LIVE','LIVE_RESTRICTED','LIVE_FULL'].includes(CFG.DEPLOY_MODE);
+14608:   Log.info('DEPLOY', `Mode: ${CFG.DEPLOY_MODE}`);
+
+
+=================================================================
+3. UI-AUFRUFER — public/index.html
+=================================================================
+
+--- grep -n '/api/deploy' public/index.html ---
+4642:  try{await apiV9('/api/deploy','POST',{mode});const _dc=document.getElementById('deploy-cur');if(_dc)_dc.textContent=mode;log('OK','Deploy Mode: '+mode);}
+7973:    const d = await apiV9('/api/deploy');
+
+--- Pro Treffer ±10 Zeilen Kontext (fetch/axios/XHR-Stelle) ---
+
+=== public/index.html:4642 (±10 Zeilen) ===
+ 4632:       if(d.ok)log('OK','✅ V9 ORDER: '+d.tradeId+' · '+d.mode);
+ 4633:       else log('WARN','V9 Order blocked: '+(d.reason||'—'));
+ 4634:     }catch(e){
+ 4635:       // Patch 2026-04-26: Frontend-Bypass mit Browser-Keys entfernt.
+ 4636:       // Order MUSS durch /api/trade/execute gehen (NoTrade, KillSwitch, MultiKI).
+ 4637:       log('ERR','Order fehlgeschlagen via Backend: '+e.message);
+ 4638:     }
+ 4639:   }else{log('WARN','Proxy nicht verbunden → Manuell ausführen');log('INFO',t.pair+' '+t.side.toUpperCase()+' '+t.qty);}
+ 4640: }
+ 4641: async function setDeployMode(mode){
+ 4642:   try{await apiV9('/api/deploy','POST',{mode});const _dc=document.getElementById('deploy-cur');if(_dc)_dc.textContent=mode;log('OK','Deploy Mode: '+mode);}
+ 4643:   catch{log('WARN','Proxy offline');}
+ 4644: }
+ 4645: 
+ 4646: // STREAK
+ 4647: function recTrade(r){S.history.unshift({result:r,pair:S.pair,time:Date.now()});if(S.history.length>50)S.history.pop();try{localStorage.setItem('nx_hist',JSON.stringify(S.history));}catch{}calcSeries();updateStreakUI();log(r==='win'?'OK':'WARN','Trade: '+r.toUpperCase());}
+ 4648: function calcSeries(){let s=0;for(const t of S.history){if(t.result==='loss')s++;else break;}S.lossSeries=s;}
+ 4649: function updateStreakUI(){
+ 4650:   const d=document.getElementById('streakDots');
+ 4651:   if(!d)return; // Patch E: streakDots ist im UI nicht mehr vorhanden — skip
+ 4652:   const h=S.history.slice(0,12);let html='';
+
+=== public/index.html:7973 (±10 Zeilen) ===
+ 7963:           <span style="color:var(--dim)">${g.name}</span>
+ 7964:           <span style="color:${g.ok?'var(--accent2)':'var(--danger)'}">${g.ok?'✅':'❌'} ${g.value||''}</span>
+ 7965:         </div>`
+ 7966:       ).join('');
+ 7967:     }
+ 7968:   } catch(e) { console.warn('Gates:', e.message); }
+ 7969: }
+ 7970: 
+ 7971: async function loadManuellDeploy() {
+ 7972:   try {
+ 7973:     const d = await apiV9('/api/deploy');
+ 7974:     const el = document.getElementById('manuell-deploy');
+ 7975:     if (el) { el.textContent = d.mode||'—'; }
+ 7976:   } catch(e) {}
+ 7977: }
+ 7978: 
+ 7979: async function execManuell(side) {
+ 7980:   const pair = (document.getElementById('manuell-pair')||{}).value||'BTCUSDT';
+ 7981:   const amt = parseFloat((document.getElementById('manuell-amt')||{}).value||0);
+ 7982:   const otype = (document.getElementById('manuell-otype')||{}).value||'market';
+ 7983:   const lp = parseFloat((document.getElementById('manuell-limitpx')||{}).value||0);
+
+=================================================================
+4. AUTH-MIDDLEWARE
+=================================================================
+
+--- grep -n 'function auth|requireAuth|authMiddleware|app.use.*auth' server.js ---
+NICHT GEFUNDEN
+
+--- Erweitert: alle app.use() Calls in server.js ---
+49:app.use((req, res, next) => {
+77:app.use(express.json({ limit:'10kb' })); // Max 10KB Requests
+78:app.use(express.static(path.join(__dirname, 'public')));
+
+--- Erweitert: andere Auth-Patterns (passport|jwt|express-session|bearer|csrf) ---
+NICHT GEFUNDEN
+
+=================================================================
+5. AUDIT-LOG IN DB
+=================================================================
+
+--- sqlite3 nexus.db .schema | grep -i 'audit|deploy|mode_change' ---
+NICHT GEFUNDEN
+
+--- Alle Tabellen die 'log' oder 'history' enthalten (Kandidaten für Audit-Trail) ---
+balance_history
+balance_history_archive
+balance_history_archive_20260513_125221
+consistency_log
+consistency_log_archive
+ml_models_history
+system_log
+system_log_archive
+
+--- Schema von consistency_log + system_log (existierende generische Logs) ---
+CREATE TABLE consistency_log (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      ts INTEGER NOT NULL,
+      severity TEXT NOT NULL,
+      check_name TEXT NOT NULL,
+      issue TEXT,
+      auto_fixed INTEGER DEFAULT 0,
+      details TEXT
+    );
+CREATE INDEX idx_consistency_ts ON consistency_log(ts);
+CREATE INDEX idx_consistency_severity ON consistency_log(severity);
+
+CREATE TABLE system_log (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      ts INTEGER NOT NULL,
+      level TEXT NOT NULL,
+      module TEXT NOT NULL,
+      msg TEXT NOT NULL,
+      data TEXT
+    );
+CREATE INDEX idx_syslog_ts ON system_log(ts);
+
+--- Counts ---
+consistency_log: 926
+system_log: 32714
+
+=================================================================
+6. RE-AUTH / CONFIRM-MECHANISMUS
+=================================================================
+
+--- grep für X-Confirm|reAuth|confirmToken|X-Deploy|DEPLOY_TOKEN ---
+NICHT GEFUNDEN
+
+=================================================================
+7. DEPLOY_MODE WERTE
+=================================================================
+
+--- grep -n 'DEPLOY_MODE' server.js | head -30 ---
+119:  DEPLOY_MODE:    process.env.DEPLOY_MODE       || 'PAPER',
+1322:    if (CFG.DEPLOY_MODE === 'PAPER') {
+5069:    this.gates.balanceValid      = CFG.DEPLOY_MODE==='PAPER' ? (DemoEngine.wallet?.trading||0)>10 : Balance.valid&&Balance.usable>CFG.MIN_USABLE_BALANCE;
+5079:    this.gates.deployModeAllows  = !DemoEngine.liveMode || ['DRY_LIVE','LIVE_RESTRICTED','LIVE_FULL'].includes(CFG.DEPLOY_MODE);
+5725:// // DEMO=LIVE: identisch in beiden Modi — keine DEPLOY_MODE-Checks.
+5951:    const balance = (CFG.DEPLOY_MODE==='PAPER'&&DemoEngine.wallet) ? DemoEngine.wallet.total : Balance.usable;
+5995:    if (!CFG.API_KEY || CFG.DEPLOY_MODE === 'PAPER') {
+6537:      note: 'F2-pflichtig: LIVE-DB-Initialisierung + DEPLOY_MODE-Switch sind manuell',
+7675:      deployMode: CFG.DEPLOY_MODE,
+7680:      note: 'READ-ONLY preflight. KEINE Orders abgeschickt. KEINE DEPLOY_MODE-Änderung.',
+7848:  //   2. CFG.DEPLOY_MODE muss in ['LIVE_RESTRICTED','LIVE_FULL']
+7866:    // Schranke 2 — DEPLOY_MODE muss LIVE-Variante sein
+7867:    if (!['LIVE_RESTRICTED','LIVE_FULL'].includes(CFG.DEPLOY_MODE)) {
+7869:        ok: true, dryRun: true, reason: 'DEPLOY_MODE_NOT_LIVE',
+7870:        currentDeployMode: CFG.DEPLOY_MODE,
+7891:      deployMode: CFG.DEPLOY_MODE,
+10434:      if (CFG.DEPLOY_MODE === 'DRY_LIVE') {
+10543:      deployMode: CFG.DEPLOY_MODE,
+12004:          if (CFG.API_KEY && ['LIVE_RESTRICTED','LIVE_FULL'].includes(CFG.DEPLOY_MODE)) {
+12026:        if (CFG.API_KEY && ['LIVE_RESTRICTED','LIVE_FULL'].includes(CFG.DEPLOY_MODE)) {
+12175:    NoTrade.gates.balanceValid = CFG.DEPLOY_MODE==='PAPER' ? (DemoEngine.wallet?.trading||0)>10 : Balance.usable>CFG.MIN_USABLE_BALANCE;
+12177:    NoTrade.gates.deployModeAllows = ['DRY_LIVE','LIVE_RESTRICTED','LIVE_FULL'].includes(CFG.DEPLOY_MODE);
+12687:  // Korrekt: DemoEngine.liveMode oder DEPLOY_MODE bestimmen den effective mode.
+12688:  mode: (DemoEngine.liveMode && CFG.DEPLOY_MODE !== 'PAPER') ? 'LIVE' : 'DEMO', deployMode: CFG.DEPLOY_MODE,
+12706:  mode: (DemoEngine.liveMode && CFG.DEPLOY_MODE !== 'PAPER') ? 'LIVE' : 'DEMO', deployMode:CFG.DEPLOY_MODE,
+12714:  deployment:{ current:CFG.DEPLOY_MODE, isLive:['LIVE_RESTRICTED','LIVE_FULL'].includes(CFG.DEPLOY_MODE) },
+14606:  CFG.DEPLOY_MODE = req.body.mode;
+14607:  NoTrade.gates.deployModeAllows = ['DRY_LIVE','LIVE_RESTRICTED','LIVE_FULL'].includes(CFG.DEPLOY_MODE);
+14608:  Log.info('DEPLOY', `Mode: ${CFG.DEPLOY_MODE}`);
+14609:  res.json({ ok:true, mode:CFG.DEPLOY_MODE });
+
+--- Pro Treffer ±3 Zeilen Kontext ---
+
+=== server.js:119 (±3 Zeilen) ===
+  116:   API_KEY:        process.env.BITGET_API_KEY    || '',
+  117:   SECRET_KEY:     process.env.BITGET_SECRET_KEY || '',
+  118:   PASSPHRASE:     process.env.BITGET_PASSPHRASE || '',
+  119:   DEPLOY_MODE:    process.env.DEPLOY_MODE       || 'PAPER',
+  120:   PORT:           process.env.PORT              || 3000,
+  121:   DB_PATH:        process.env.DB_PATH           || './nexus.db',
+  122: 
+
+=== server.js:1322 (±3 Zeilen) ===
+ 1319:     if (!ex || !ex.enabled) return { error: 'Exchange nicht aktiv' };
+ 1320:     if (!ex.apiKey) return { error: `${ex.name}: Kein API Key` };
+ 1321:     // Demo-Modus
+ 1322:     if (CFG.DEPLOY_MODE === 'PAPER') {
+ 1323:       Log.info('MULTIEX', `PAPER ${ex.name} ${symbol} ${side} ${size}`);
+ 1324:       return { ok: true, demo: true, orderId: `DEMO_${exchangeId}_${Date.now()}` };
+ 1325:     }
+
+=== server.js:5069 (±3 Zeilen) ===
+ 5066:   },
+ 5067: 
+ 5068:   refresh() {
+ 5069:     this.gates.balanceValid      = CFG.DEPLOY_MODE==='PAPER' ? (DemoEngine.wallet?.trading||0)>10 : Balance.valid&&Balance.usable>CFG.MIN_USABLE_BALANCE;
+ 5070:     this.gates.killSwitchOff     = !KillSwitch.active && KillSwitch.mode==='NORMAL';
+ 5071:     this.gates.noActiveIncident  = !Incidents.hasCritical();
+ 5072:     this.gates.runtimeClean      = Incidents.pressureScore() < 0.5;
+
+=== server.js:5079 (±3 Zeilen) ===
+ 5076:     this.gates.concurrencyOk     = _effOpen < Math.min(CFG.MAX_OPEN_TRADES, RiskLadder.maxTrades(), (typeof RiskTier!=='undefined'?RiskTier.maxPositions():Infinity));
+ 5077:     this.gates.tierDailyDD       = (typeof RiskTier!=='undefined') ? RiskTier.checkDailyDD() : true;
+ 5078:     // Demo Engine darf auch im PAPER Modus traden
+ 5079:     this.gates.deployModeAllows  = !DemoEngine.liveMode || ['DRY_LIVE','LIVE_RESTRICTED','LIVE_FULL'].includes(CFG.DEPLOY_MODE);
+ 5080:     this.gates.regimeAcceptable  = !['EXTREME_BEAR','FLASH_CRASH'].includes(Regime.regime);
+ 5081:     this.gates.marketDataFresh   = Object.keys(Bitget.priceCache).length > 0 || Balance.valid;
+ 5082:     this.gates.profitabilityGreen= Balance.trading > 0;
+
+=== server.js:5725 (±3 Zeilen) ===
+ 5722: // Direction wird upstream in UnifiedScore/Brain entschieden — RiskSizing
+ 5723: // arbeitet nur auf der USDT-Position-Größe.
+ 5724: //
+ 5725: // // DEMO=LIVE: identisch in beiden Modi — keine DEPLOY_MODE-Checks.
+ 5726: //
+ 5727: // Return: { size, skip, reason, sizeRisk, sizeCap, mult, slPctRaw, slPctEff,
+ 5728: //           slFloorApplied, confidence, sentimentMult, tradingBalance }
+
+=== server.js:5951 (±3 Zeilen) ===
+ 5948:   lastRun:   null,
+ 5949: 
+ 5950:   run() {
+ 5951:     const balance = (CFG.DEPLOY_MODE==='PAPER'&&DemoEngine.wallet) ? DemoEngine.wallet.total : Balance.usable;
+ 5952:     const positions = Trades.getActive();
+ 5953:     // Wenn keine offenen Positionen → kein Risiko → automatisch PASS
+ 5954:     if (!positions || positions.length === 0 || balance <= 0) {
+
+=== server.js:5995 (±3 Zeilen) ===
+ 5992: 
+ 5993:   async run() {
+ 5994:     this.mismatches = [];
+ 5995:     if (!CFG.API_KEY || CFG.DEPLOY_MODE === 'PAPER') {
+ 5996:       if (DemoEngine.wallet) {
+ 5997:         const w = DemoEngine.wallet;
+ 5998:         const drift = Math.abs(w.total - w.reserve - w.trading);
+
+=== server.js:6537 (±3 Zeilen) ===
+ 6534:       demoExists, liveExists,
+ 6535:       activeMode: (typeof DemoEngine !== 'undefined' && DemoEngine.liveMode) ? 'LIVE' : 'DEMO',
+ 6536:       activeDB: this.getCurrentDBPath(),
+ 6537:       note: 'F2-pflichtig: LIVE-DB-Initialisierung + DEPLOY_MODE-Switch sind manuell',
+ 6538:     };
+ 6539:   },
+ 6540: };
+
+=== server.js:7675 (±3 Zeilen) ===
+ 7672:     return {
+ 7673:       ts: Date.now(),
+ 7674:       durationMs: Date.now() - ts0,
+ 7675:       deployMode: CFG.DEPLOY_MODE,
+ 7676:       auth_keys_present: !!CFG.API_KEY,
+ 7677:       passed, total: checks.length,
+ 7678:       verdict: allPass ? 'LIVE_READY' : 'NOT_READY',
+
+=== server.js:7680 (±3 Zeilen) ===
+ 7677:       passed, total: checks.length,
+ 7678:       verdict: allPass ? 'LIVE_READY' : 'NOT_READY',
+ 7679:       checks,
+ 7680:       note: 'READ-ONLY preflight. KEINE Orders abgeschickt. KEINE DEPLOY_MODE-Änderung.',
+ 7681:     };
+ 7682:   },
+ 7683: };
+
+=== server.js:7848 (±3 Zeilen) ===
+ 7845:   // PlaceBestExecutionOrder — RouterStub mit kategorischer Sicherheitsschranke.
+ 7846:   // KEIN echter Order-Send v1. Drei Schranken halten den Pfad geschlossen:
+ 7847:   //   1. CFG.MULTI_EXCHANGE_ROUTING_ENABLED muss true sein (default false)
+ 7848:   //   2. CFG.DEPLOY_MODE muss in ['LIVE_RESTRICTED','LIVE_FULL']
+ 7849:   //   3. Bitget bleibt always-fallback (kein Drittparty-Routing solange CCXT nicht eingebunden)
+ 7850:   // Sources: ccxt manual create_order, Vantixs Exchange-Outage-Handling (retry+backoff),
+ 7851:   //          Astralane fast-execution
+
+=== server.js:7866 (±3 Zeilen) ===
+ 7863:         decision,
+ 7864:       };
+ 7865:     }
+ 7866:     // Schranke 2 — DEPLOY_MODE muss LIVE-Variante sein
+ 7867:     if (!['LIVE_RESTRICTED','LIVE_FULL'].includes(CFG.DEPLOY_MODE)) {
+ 7868:       return {
+ 7869:         ok: true, dryRun: true, reason: 'DEPLOY_MODE_NOT_LIVE',
+
+=== server.js:7867 (±3 Zeilen) ===
+ 7864:       };
+ 7865:     }
+ 7866:     // Schranke 2 — DEPLOY_MODE muss LIVE-Variante sein
+ 7867:     if (!['LIVE_RESTRICTED','LIVE_FULL'].includes(CFG.DEPLOY_MODE)) {
+ 7868:       return {
+ 7869:         ok: true, dryRun: true, reason: 'DEPLOY_MODE_NOT_LIVE',
+ 7870:         currentDeployMode: CFG.DEPLOY_MODE,
+
+=== server.js:7869 (±3 Zeilen) ===
+ 7866:     // Schranke 2 — DEPLOY_MODE muss LIVE-Variante sein
+ 7867:     if (!['LIVE_RESTRICTED','LIVE_FULL'].includes(CFG.DEPLOY_MODE)) {
+ 7868:       return {
+ 7869:         ok: true, dryRun: true, reason: 'DEPLOY_MODE_NOT_LIVE',
+ 7870:         currentDeployMode: CFG.DEPLOY_MODE,
+ 7871:         wouldExecuteOn: decision.chosen,
+ 7872:         decision,
+
+=== server.js:7870 (±3 Zeilen) ===
+ 7867:     if (!['LIVE_RESTRICTED','LIVE_FULL'].includes(CFG.DEPLOY_MODE)) {
+ 7868:       return {
+ 7869:         ok: true, dryRun: true, reason: 'DEPLOY_MODE_NOT_LIVE',
+ 7870:         currentDeployMode: CFG.DEPLOY_MODE,
+ 7871:         wouldExecuteOn: decision.chosen,
+ 7872:         decision,
+ 7873:       };
+
+=== server.js:7891 (±3 Zeilen) ===
+ 7888:       cacheSize: this._cache.size,
+ 7889:       cacheTtlMs: this._cacheTtlMs,
+ 7890:       routingEnabled: CFG.MULTI_EXCHANGE_ROUTING_ENABLED === true,
+ 7891:       deployMode: CFG.DEPLOY_MODE,
+ 7892:       feeTable: this._feeTable,
+ 7893:       note: 'Read-only price compare + best-execution analyzer; placeBestExecutionOrder DRY-RUN solange CFG.MULTI_EXCHANGE_ROUTING_ENABLED=false (default).',
+ 7894:     };
+
+=== server.js:10434 (±3 Zeilen) ===
+10431:     try {
+10432:       // C.3 [14.05.2026] DRY_LIVE: echte Bitget-API für Connectivity-Test, ABER kein placeSportOrder.
+10433:       // Aktivierung NUR mit separater Christian-F2 via POST /api/deploy {mode:'DRY_LIVE'}.
+10434:       if (CFG.DEPLOY_MODE === 'DRY_LIVE') {
+10435:         // Echte API-Latenz simulieren: ticker + orderbook fetchen (Bitget public-API)
+10436:         const ticker = await Bitget.fetchTicker(symbol).catch(() => null);
+10437:         const ob = await Bitget.fetchOrderbook(symbol).catch(() => null);
+
+=== server.js:10543 (±3 Zeilen) ===
+10540:     return {
+10541:       currentMode: (DemoEngine && DemoEngine.liveMode) ? 'LIVE' : 'DEMO',
+10542:       apiKeySet: !!CFG.API_KEY,
+10543:       deployMode: CFG.DEPLOY_MODE,
+10544:     };
+10545:   },
+10546: };
+
+=== server.js:12004 (±3 Zeilen) ===
+12001:         const guardianVerdict = await PositionGuardian.checkPosition(trade, ticker.last, candles);
+12002:         if (guardianVerdict && guardianVerdict.shouldExit) {
+12003:           this._log(`Guardian-Exit: ${trade.symbol} ${guardianVerdict.reason} regime=${guardianVerdict.regime} drop=${(guardianVerdict.dropPct*100).toFixed(0)}%`);
+12004:           if (CFG.API_KEY && ['LIVE_RESTRICTED','LIVE_FULL'].includes(CFG.DEPLOY_MODE)) {
+12005:             const closeSide = trade.side==='buy' ? 'sell' : 'buy';
+12006:             await Bitget.placeSportOrder(trade.symbol, closeSide, trade.size).catch(e=>this._log(`Guardian close fail: ${e.message}`,'WARN'));
+12007:           }
+
+=== server.js:12026 (±3 Zeilen) ===
+12023:         if (!exit?.shouldExit) continue;
+12024:         this._log(`Exit: ${trade.symbol} ${trade.side} | ${exit.reason} | PnL≈${exit.pnlPct?(exit.pnlPct*100).toFixed(2)+'%':'?'}`);
+12025:         // Execute exit order
+12026:         if (CFG.API_KEY && ['LIVE_RESTRICTED','LIVE_FULL'].includes(CFG.DEPLOY_MODE)) {
+12027:           const closeSide = trade.side==='buy' ? 'sell' : 'buy';
+12028:           await Bitget.placeSportOrder(trade.symbol, closeSide, trade.size).catch(e=>this._log(`Exit order fail: ${e.message}`,'WARN'));
+12029:         }
+
+=== server.js:12175 (±3 Zeilen) ===
+12172:     Balance.valid=true; Balance.lastFetched=new Date().toISOString();
+12173:     if (Balance.usable > Balance.peakEquity) Balance.peakEquity=Balance.usable;
+12174:     try { DB.insertBalance.run(Date.now(), Balance.usable, Balance.reserve, Balance.trading, Balance.dailyPnL); } catch(_){}
+12175:     NoTrade.gates.balanceValid = CFG.DEPLOY_MODE==='PAPER' ? (DemoEngine.wallet?.trading||0)>10 : Balance.usable>CFG.MIN_USABLE_BALANCE;
+12176:     NoTrade.gates.profitabilityGreen = Balance.trading > 0;
+12177:     NoTrade.gates.deployModeAllows = ['DRY_LIVE','LIVE_RESTRICTED','LIVE_FULL'].includes(CFG.DEPLOY_MODE);
+12178:   } catch(e) {
+
+=== server.js:12177 (±3 Zeilen) ===
+12174:     try { DB.insertBalance.run(Date.now(), Balance.usable, Balance.reserve, Balance.trading, Balance.dailyPnL); } catch(_){}
+12175:     NoTrade.gates.balanceValid = CFG.DEPLOY_MODE==='PAPER' ? (DemoEngine.wallet?.trading||0)>10 : Balance.usable>CFG.MIN_USABLE_BALANCE;
+12176:     NoTrade.gates.profitabilityGreen = Balance.trading > 0;
+12177:     NoTrade.gates.deployModeAllows = ['DRY_LIVE','LIVE_RESTRICTED','LIVE_FULL'].includes(CFG.DEPLOY_MODE);
+12178:   } catch(e) {
+12179:     if ((typeof Incidents.countType === 'function' ? Incidents.countType('BALANCE_FETCH') : 0) < 3) {
+12180:       Incidents.create('BALANCE_FETCH', e.message, 'HIGH');
+
+=== server.js:12687 (±3 Zeilen) ===
+12684: // ── STATUS ──
+12685: app.get('/api/status', (req,res) => res.json({
+12686:   // P4 [14.05.2026] Bug-Fix: 'mode' war fälschlich aus CFG.API_KEY hergeleitet (API-Keys-Set != Live-Trading).
+12687:   // Korrekt: DemoEngine.liveMode oder DEPLOY_MODE bestimmen den effective mode.
+12688:   mode: (DemoEngine.liveMode && CFG.DEPLOY_MODE !== 'PAPER') ? 'LIVE' : 'DEMO', deployMode: CFG.DEPLOY_MODE,
+12689:   uptime: process.uptime(), state: KillSwitch.mode,
+12690:   balance: Balance.snapshot(), noTrade: NoTrade.verdict(),
+
+=== server.js:12688 (±3 Zeilen) ===
+12685: app.get('/api/status', (req,res) => res.json({
+12686:   // P4 [14.05.2026] Bug-Fix: 'mode' war fälschlich aus CFG.API_KEY hergeleitet (API-Keys-Set != Live-Trading).
+12687:   // Korrekt: DemoEngine.liveMode oder DEPLOY_MODE bestimmen den effective mode.
+12688:   mode: (DemoEngine.liveMode && CFG.DEPLOY_MODE !== 'PAPER') ? 'LIVE' : 'DEMO', deployMode: CFG.DEPLOY_MODE,
+12689:   uptime: process.uptime(), state: KillSwitch.mode,
+12690:   balance: Balance.snapshot(), noTrade: NoTrade.verdict(),
+12691:   killSwitch: KillSwitch.snapshot(), bitget: Bitget.snapshot(),
+
+=== server.js:12706 (±3 Zeilen) ===
+12703: // ── SNAPSHOT ──
+12704: app.get('/api/snapshot', (req,res) => res.json({
+12705:   // P4 [14.05.2026] Bug-Fix: same as /api/status
+12706:   mode: (DemoEngine.liveMode && CFG.DEPLOY_MODE !== 'PAPER') ? 'LIVE' : 'DEMO', deployMode:CFG.DEPLOY_MODE,
+12707:   uptime:process.uptime(), balance:Balance.snapshot(),
+12708:   killSwitch:KillSwitch.snapshot(), noTrade:NoTrade.verdict(),
+12709:   regime:Regime.snapshot(), monitoring:{ drawdown: Balance.peakEquity>0?(Balance.peakEquity-Balance.usable)/Balance.peakEquity:0, alerts:[] },
+
+=== server.js:12714 (±3 Zeilen) ===
+12711:   reconciliation:{ state:Recon.state, mismatches:Recon.mismatches },
+12712:   portfolio:{ heatScore:Math.min(1,Trades.getActive().length/CFG.MAX_OPEN_TRADES), exposure:{ total:Trades.getActive().reduce((s,t)=>s+(t.size||0),0), tradeCount:Trades.getActive().length, byAsset:{} } },
+12713:   futures:{ leverage:CFG.DEFAULT_LEVERAGE, marginMode:'isolated', fundingAccrued:0 },
+12714:   deployment:{ current:CFG.DEPLOY_MODE, isLive:['LIVE_RESTRICTED','LIVE_FULL'].includes(CFG.DEPLOY_MODE) },
+12715:   trades:{ active:Trades.getActive().length, total:Trades.getAll().length },
+12716:   autonomous:AutoEngine.snapshot(),
+12717:   performance:PerfTracker.systemStats(),
+
+=== server.js:14606 (±3 Zeilen) ===
+14603: app.post('/api/deploy', (req,res) => {
+14604:   const valid = ['PAPER','DRY_LIVE','LIVE_RESTRICTED','LIVE_FULL'];
+14605:   if (!valid.includes(req.body?.mode)) return res.status(400).json({ error:'Invalid mode', valid });
+14606:   CFG.DEPLOY_MODE = req.body.mode;
+14607:   NoTrade.gates.deployModeAllows = ['DRY_LIVE','LIVE_RESTRICTED','LIVE_FULL'].includes(CFG.DEPLOY_MODE);
+14608:   Log.info('DEPLOY', `Mode: ${CFG.DEPLOY_MODE}`);
+14609:   res.json({ ok:true, mode:CFG.DEPLOY_MODE });
+
+=== server.js:14607 (±3 Zeilen) ===
+14604:   const valid = ['PAPER','DRY_LIVE','LIVE_RESTRICTED','LIVE_FULL'];
+14605:   if (!valid.includes(req.body?.mode)) return res.status(400).json({ error:'Invalid mode', valid });
+14606:   CFG.DEPLOY_MODE = req.body.mode;
+14607:   NoTrade.gates.deployModeAllows = ['DRY_LIVE','LIVE_RESTRICTED','LIVE_FULL'].includes(CFG.DEPLOY_MODE);
+14608:   Log.info('DEPLOY', `Mode: ${CFG.DEPLOY_MODE}`);
+14609:   res.json({ ok:true, mode:CFG.DEPLOY_MODE });
+14610: });
+
+=== server.js:14608 (±3 Zeilen) ===
+14605:   if (!valid.includes(req.body?.mode)) return res.status(400).json({ error:'Invalid mode', valid });
+14606:   CFG.DEPLOY_MODE = req.body.mode;
+14607:   NoTrade.gates.deployModeAllows = ['DRY_LIVE','LIVE_RESTRICTED','LIVE_FULL'].includes(CFG.DEPLOY_MODE);
+14608:   Log.info('DEPLOY', `Mode: ${CFG.DEPLOY_MODE}`);
+14609:   res.json({ ok:true, mode:CFG.DEPLOY_MODE });
+14610: });
+14611: 
+
+=== server.js:14609 (±3 Zeilen) ===
+14606:   CFG.DEPLOY_MODE = req.body.mode;
+14607:   NoTrade.gates.deployModeAllows = ['DRY_LIVE','LIVE_RESTRICTED','LIVE_FULL'].includes(CFG.DEPLOY_MODE);
+14608:   Log.info('DEPLOY', `Mode: ${CFG.DEPLOY_MODE}`);
+14609:   res.json({ ok:true, mode:CFG.DEPLOY_MODE });
+14610: });
+14611: 
+14612: // ── FUTURES LEVERAGE ──
+
+=================================================================
+8. CFG-OBJEKT — server.js Z.1-300 wörtlich
+=================================================================
+    1: 'use strict';
+    2: // ═══════════════════════════════════════════════════════════════════════════════
+    3: // 🔴 UNIVERSELLE REGELN (siehe CLAUDE.md)
+    4: // ═══════════════════════════════════════════════════════════════════════════════
+    5: // 1. DEMO=LIVE — Trade-Logik identisch in beiden Modi (Order-Send einziger Branch)
+    6: // 2. WEB-RECHERCHE — bei Unsicherheit/Demo-Lücke ZUERST recherchieren (2026-Stand)
+    7: //    Niemals "geht so nicht" → immer "wie löst man das laut Web-Stand?"
+    8: // ═══════════════════════════════════════════════════════════════════════════════
+    9: // 🔴 DEMO=LIVE ABSOLUTE RULE — verankert 15.05.2026 09:45
+   10: // ═══════════════════════════════════════════════════════════════════════════════
+   11: // Jede Trade-Logik MUSS in Demo + LIVE identisch arbeiten.
+   12: // Einziger erlaubter Unterschied: Order-Send selbst.
+   13: //   Demo  → ExecutionAdapter._simulateFill (orderbook-walk, Slippage, Latency)
+   14: //   LIVE  → ExecutionAdapter._liveFill (echte Bitget-Order)
+   15: // Davor (Decision-Flow, Size, Stops, Cooldowns): IDENTISCH.
+   16: // Danach (Reconciliation, Wallet-Update, Logging): IDENTISCH.
+   17: //
+   18: // Verstoß = sofortiger STOP + Rollback + Telegram-Alarm.
+   19: //
+   20: // Funktion-Header-Konvention:
+   21: //   // DEMO=LIVE: identisch in beiden Modi
+   22: //   // LIVE-ONLY: nur echtes Trading (z.B. Bitget-Order-Send)
+   23: //   // DEMO-ONLY: nur Simulation (z.B. Wallet-Update intern)
+   24: //
+   25: // Tax-Reporting (FIFO) ist EINZIGE Ausnahme — kein Trade-Logik-Tool.
+   26: // Siehe CLAUDE.md → "DEMO=LIVE ABSOLUTE RULE" für Pflicht-Audit + Verify.
+   27: // ═══════════════════════════════════════════════════════════════════════════════
+   28: // NEXUS V9 PRO – HIGH-END AUTONOMOUS TRADING BOT
+   29: // SQLite Persistenz · Bitget WebSocket · Advanced Signals · Sharpe Ratio
+   30: // Per-Strategie Performance Tracking · Adaptive Risk Management
+   31: // ═══════════════════════════════════════════════════════════════════════════════
+   32: require('dotenv').config();
+   33: const express  = require('express');
+   34: const axios    = require('axios');
+   35: const crypto   = require('crypto');
+   36: const path     = require('path');
+   37: const fs       = require('fs');
+   38: const Database = require('better-sqlite3');
+   39: const WebSocket = require('ws');
+   40: // B.4 [14.05.2026]: Event-Loop-Health-Monitor (Light-Variant; Full Worker-Refactor deferred)
+   41: const { monitorEventLoopDelay } = require('perf_hooks');
+   42: 
+   43: // V35-FIX [2026-05-13]: Boot-Karenz-Timestamp - DecisionFlow blockt Trades in ersten 60s
+   44: globalThis._botBootTs = Date.now();
+   45: 
+   46: const app = express();
+   47: 
+   48: // ── SECURITY MIDDLEWARE (Angriffs-Abwehr) ──────────────────────────────────
+   49: app.use((req, res, next) => {
+   50:   const ip = req.ip || req.connection.remoteAddress || 'unknown';
+   51: 
+   52:   // Initialisierung: SelfHeal.checkRateLimit braucht SelfHeal-Objekt
+   53:   // Rate Limit wird nach SelfHeal-Definition aktiv (Bootstrap-Schutz)
+   54:   if (typeof SelfHeal !== 'undefined') {
+   55:     if (!SelfHeal.checkRateLimit(ip)) {
+   56:       return res.status(429).json({ error:'Too many requests', blocked:true });
+   57:     }
+   58:     // Payload Security Check nur bei POST/PATCH
+   59:     if (['POST','PATCH','PUT'].includes(req.method)) {
+   60:       const check = SelfHeal.checkPayload(req.body);
+   61:       if (!check.safe) {
+   62:         SelfHeal.attackLog.unshift({ ts:Date.now(), ip, type:check.threat, path:req.path });
+   63:         Log.warn('SECURITY', `${check.threat} von ${ip} auf ${req.path}`);
+   64:         return res.status(400).json({ error:'Invalid request', threat:check.threat });
+   65:       }
+   66:     }
+   67:   }
+   68: 
+   69:   // Security Headers
+   70:   res.setHeader('X-Content-Type-Options', 'nosniff');
+   71:   res.setHeader('X-Frame-Options', 'DENY');
+   72:   res.setHeader('X-XSS-Protection', '1; mode=block');
+   73:   res.setHeader('X-Bot', 'NEXUS-V9-ULTIMATE');
+   74:   next();
+   75: });
+   76: 
+   77: app.use(express.json({ limit:'10kb' })); // Max 10KB Requests
+   78: app.use(express.static(path.join(__dirname, 'public')));
+   79: 
+   80: // ─────────────────────────────────────────────────────────────────────────────
+   81: // CONFIG
+   82: // ─────────────────────────────────────────────────────────────────────────────
+   83: const CFG = {
+   84:   // V35-FIX [2026-05-13]: Boot-Karenz - keine neuen Trades in den ersten 60s
+   85:   BOOT_CARENZ_MS:        60 * 1000,
+   86: 
+   87:   // V35-FIX [2026-05-13]: Brain-Modus-Switch
+   88:   // shadow    = aktuelles Verhalten (Brain protokolliert nur, blockt nichts)
+   89:   // voter     = Brain ist Stimme im Konsens-Aggregator (2-aus-3 mit UnifiedScore + Regime)
+   90:   // authority = Brain hat Veto-Power (Brain-HOLD blockt Trade)
+   91:   BRAIN_MODE:            "voter",   // VISION Stufe 1.4 [16.05.2026]: shadow → voter (Brain entscheidet mit, nicht nur beobachtet)
+   92: 
+   93:   // DISCIPLINE-GUARD [2026-05-13]: DemoEngine-Trades brauchen Christian-Freigabe.
+   94:   // Default false. Override via bot_settings.autonomous_demo_trades_enabled.
+   95:   // Brain lernt weiter via consensus_decisions (trade-unabhängig).
+   96:   AUTONOMOUS_DEMO_TRADES_ENABLED: false,
+   97: 
+   98:   // PREP-SHARPE-ADAPTIVE [2026-05-13]: Voter-Confidence + Adaptive Learning-Rate.
+   99:   // BEIDE DEAKTIVIERT. Aktivierung erst nach Reset Day Zero + 50-100 sauberen Trades.
+  100:   //
+  101:   // SHARPE_SOFTMAX_ENABLED (Recherche-Empfehlung 1, HACN + FinRL + emergentmind):
+  102:   //   final_size = base_size × (1 + 0.2 × softmax(Sharpe_voter)_winner)
+  103:   //   Voter-Performance über letzte 50 Trades, Sharpe-basierte Confidence-Korrektur.
+  104:   //   ACTIVATION: ≥50 saubere Trades NACH Reset Day Zero + BRAIN_MODE ∈ {voter,authority}.
+  105:   //   ENABLE: bot_settings.sharpe_softmax_enabled='true' ODER CFG-Override.
+  106:   //
+  107:   // ADAPTIVE_LR_ENABLED (Recherche-Empfehlung 3, Arora-Hazan-Kale + Littlestone-Warmuth):
+  108:   //   ε = max(0.01, √(ln K / max(n_trades, 50)))   K=5 Familien
+  109:   //   lr_winner = 1 + ε  ,  lr_loser = 1 - ε   (statt fix V1=1.05 oder V2=1.01)
+  110:   //   Skaliert automatisch von ε≈0.18 (n=50) bis ε≈0.02 (n=4000).
+  111:   //   ACTIVATION: gleichzeitig mit SHARPE_SOFTMAX_ENABLED oder isoliert nach Validierung.
+  112:   SHARPE_SOFTMAX_ENABLED: false,
+  113:   ADAPTIVE_LR_ENABLED:    false,
+  114:   BITGET_BASE:    'https://api.bitget.com',
+  115:   BITGET_WS:      'wss://ws.bitget.com/v2/ws/public',
+  116:   API_KEY:        process.env.BITGET_API_KEY    || '',
+  117:   SECRET_KEY:     process.env.BITGET_SECRET_KEY || '',
+  118:   PASSPHRASE:     process.env.BITGET_PASSPHRASE || '',
+  119:   DEPLOY_MODE:    process.env.DEPLOY_MODE       || 'PAPER',
+  120:   PORT:           process.env.PORT              || 3000,
+  121:   DB_PATH:        process.env.DB_PATH           || './nexus.db',
+  122: 
+  123:   // Capital
+  124:   RESERVE_RATIO:         0.70,
+  125:   TRADING_RATIO:         0.30,
+  126:   KELLY_FRACTION:        0.05,
+  127:   MIN_USABLE_BALANCE:    10,
+  128:   MIN_POSITION_USDT:     5,
+  129:   MAX_POSITION_PCT:      0.10,
+  130:   TRADING_BUDGET_USDT:   null,
+  131:   MAX_OPEN_TRADES:       5,    // konfigurierbar zur Laufzeit via /api/slots/set
+  132:   // Tier 1b.1 [2026-05-11]: Slot-Range fuer dynamische Slot-Steuerung
+  133:   MIN_SLOTS:             1,
+  134:   MAX_SLOTS:             20,
+  135: 
+  136:   // Risk
+  137:   MAX_DRAWDOWN_PCT:      0.12,
+  138:   MAX_DAILY_LOSS_PCT:    0.05,
+  139: 
+  140:   // T1 [15.05.2026] AUTO-NOTBREMSE (extern + intern)
+  141:   // Absoluter dailyPnl-Trigger zusätzlich zu prozentualer KillSwitch-Schwelle.
+  142:   // Verschärft von -30 → -15 USDT (frühe Reaktion).
+  143:   AUTO_NOTBREMSE_DAILY_LOSS_USDT: -15,
+  144: 
+  145:   // T2 [15.05.2026] CAPITAL-EXPOSURE-CAP — Storm-Schutz
+  146:   // Verhindert Pattern wie 06:32-06:36 (75-90% in korrelierten Alts).
+  147:   MAX_TOTAL_EXPOSURE_PCT: 0.60,   // Max 60% Capital investiert
+  148:   MAX_ALT_EXPOSURE_PCT:   0.45,   // Max 45% in High-Correlation-Alts
+  149: 
+  150:   // F20 [15.05.2026] SLIPPAGE-CAP — DEMO+LIVE konsistent
+  151:   // Reject Order wenn slipPct > MAX. Demo+LIVE identisches Verhalten.
+  152:   MAX_SLIPPAGE_PCT:       0.005,  // 0.5% — typisch Bitget-Spread auf Major-Coins
+  153: 
+  154:   // F (Phase 2) [15.05.2026] PROFIT-LOCK HWM — Portfolio-Drawdown-SizeReduction
+  155:   // Web-Recherche 2026: 10-15% DD-Threshold → 25-30% Size-Cut (alphaexcapital, nadcab, quantvps)
+  156:   PROFIT_LOCK_DD_THRESHOLD: 0.10,  // 10% DD von HWM → trigger
+  157:   PROFIT_LOCK_SIZE_REDUCTION: 0.70, // size × 0.70 (= -30%)
+  158:   MAX_ERROR_RATE:        0.30,
+  159:   BASE_RISK_BUDGET:      0.02,    // DEPRECATED [Tier 1.1, 2026-05-11]: ersetzt durch RISK_PER_TRADE
+  160:   RISK_PER_TRADE:        0.01,    // Tier 1.1: 1% des Trading-Kapitals pro Trade (Capital Preservation)
+  161:   REGIME_MULT_CAP:       1.4,     // Tier 1.3: Stacking-Cap für effektiven Multiplier (Boost gecappt, Drawdown ungecappt)
+  162:   REGIME_STABLE_BUFFER:  3,       // Tier 1.3: Hysterese-Buffer-Länge pro Symbol
+  163:   REGIME_STABLE_MIN:     2,       // Tier 1.3: Mehrheit (2-aus-3) für stabile Klassifikation
+  164: 
+  165:   // Signals
+  166:   MIN_ENE:               0.0010,
+  167:   MIN_SIGNAL_STRENGTH:   0.55,
+  168:   SIGNAL_CONSENSUS_MIN:  2,
+  169:   // Welle 2a [2026-05-12]: UnifiedScore-Direction-Floor
+  170:   // SCORE_FLOOR = 0.08 (neue strenge Schwelle, alt war 0.04)
+  171:   // SCORE_FLOOR_MODE = 'log_only': Direction nutzt weiter 0.04, aber 0.08-Floor wird theoretisch geloggt.
+  172:   // SCORE_FLOOR_MODE = 'active_block': Direction nutzt 0.08, Trade wird aktiv blockiert.
+  173:   // Begründung log_only-Default: Simulation n=30 zeigte FLOOR=0.08 würde 3 Winner blocken
+  174:   // (XRP +0.34, LINK +1.02, SEI +1.32). VETO ist nachweislich effektiv (3/3 NO_CONSENSUS-Verluste
+  175:   // verhindert). VETO aktiv, FLOOR misst nur — bei 50+ Live-Daten neu bewerten.
+  176:   SCORE_FLOOR:           0.08,
+  177:   SCORE_FLOOR_OLD:       0.04,
+  178:   SCORE_FLOOR_MODE:      'log_only',  // 'log_only' | 'active_block'
+  179:   // PHASE 1.5 [14.05]: Regime-adaptive Score-Floor.
+  180:   // Diagnose 14.05: CHOPPY/SQUEEZE haben 0.7-3.3% Decisions ≥0.08 → quasi-blockiert.
+  181:   // Live-Sim auf 6039 Decisions: adaptiv 39% trade-fähig vs statisch 22% (0.08) vs 45% (0.04).
+  182:   // Wirksam erst wenn SCORE_FLOOR_MODE='active_block' UND AUTONOMOUS_DEMO_TRADES=true.
+  183:   SCORE_FLOOR_REGIME_ADAPTIVE: true,
+  184:   // Bug 3 [15.05.2026]: RANGING/SQUEEZE/CHOPPY angehoben gegen WR-Drop in Range-Markt.
+  185:   // Vorher: SQUEEZE/CHOPPY/RANGING 0.04 — zu permissive für TREND-Signals in Range-Markt.
+  186:   SCORE_FLOOR_REGIME_MAP: {
+  187:     SQUEEZE: 0.06, CHOPPY: 0.07, RANGING: 0.08,
+  188:     NEUTRAL: 0.06, WEAK_BULL: 0.06, WEAK_BEAR: 0.06,
+  189:     BULL: 0.08, BEAR: 0.08,
+  190:     STRONG_BULL: 0.10, STRONG_BEAR: 0.10,
+  191:     EXTREME_BEAR: 0.12, FLASH_CRASH: 0.12, EXTREME: 0.12,
+  192:   },
+  193: 
+  194:   // Fees (Bitget VIP0)
+  195:   MAKER_FEE:             0.0002,
+  196:   TAKER_FEE:             0.0006,
+  197: 
+  198:   // A.4 [14.05.2026] — Whipsaw-Schutz
+  199:   WHIPSAW_MIN_HOLD_TIME_MS: 300000,   // 5min kein Re-Entry nach Close
+  200:   WHIPSAW_LOOKBACK_MS:      1800000,  // 30min Flip-Flop-Beobachtung
+  201:   WHIPSAW_MAX_FLIPS:        2,        // ab 3 Side-Wechsel/30min → skip
+  202: 
+  203:   // Bug 2 [15.05.2026] — A.4-Erweiterung: Loss-Cooldown + Streak-Block
+  204:   // Verhindert LINKUSDT 3×-SL-Pattern (-4.22 USDT in 24h)
+  205:   A4_LOSS_COOLDOWN_MS:      3600000,    // 60min Sperre nach SL pro Symbol
+  206:   A4_STREAK_THRESHOLD:      2,          // 2+ losses in Window → block
+  207:   A4_STREAK_WINDOW_MS:      14400000,   // 4h Streak-Beobachtungs-Fenster
+  208:   A4_STREAK_BLOCK_MS:       86400000,   // 24h Streak-Block-Dauer
+  209: 
+  210:   // D.1+D.2 [14.05.2026] — ML Walk-Forward Validation
+  211:   ML_WALK_FORWARD_ENABLED:  true,
+  212:   ML_MIN_ACCURACY:          0.60,
+  213:   ML_MIN_TRADES_RETRAIN:    50,
+  214: 
+  215:   // Regime
+  216:   EMA_FAST:              12,
+  217:   EMA_SLOW:              26,
+  218: 
+  219:   // Exit
+  220:   ATR_STOP_MULT:         1.5,
+  221:   ATR_TP_MULT:           3.0,
+  222:   TRAILING_PCT:          0.020,
+  223:   TRAILING_USE_ATR:      true,    // 2026-04-25: ATR-basiertes Trailing aktiviert
+  224:   TRAILING_ATR_MULT:     2.0,     // 2x ATR Trail-Abstand (Profi-Standard)
+  225:   MAX_HOLD_HOURS:        24,
+  226: 
+  227:   // Trend-Quality (2026-04-25 - ADX/MTF Filter)
+  228:   TREND_QUALITY_ENABLED: true,
+  229:   ADX_MIN_TRADE:         18,      // unter dem Wert kein Trade
+  230:   ADX_MIN_FULL:          22,      // unter dem Wert reduzierte confidence
+  231:   ADX_STRONG:            30,      // ueber dem Wert confidence boost
+  232:   MTF_CHECK_ENABLED:     true,    // 4h-EMA50 Check vor Trade-Entscheidung
+  233: 
+  234:   // Stress
+  235:   STRESS_SURVIVAL_MIN:   0.60,
+  236: 
+  237:   // Futures
+  238:   DEFAULT_LEVERAGE:      3,
+  239:   MAX_LEVERAGE:          10,
+  240: 
+  241:   // Scan
+  242:   SCAN_INTERVAL_MS:      60000,
+  243:   DEFAULT_SYMBOLS:       ['BTCUSDT','ETHUSDT','SOLUSDT','XRPUSDT'],
+  244: 
+  245:   // Phase 6 Teil 5 [15.05.2026] TRADING FARM — Sub-Bot-Registry + Symbol-Locks
+  246:   TRADING_FARM_ENABLED:             true,    // Control-plane only v1
+  247:   TRADING_FARM_LOCK_TTL_MS:         60000,   // Lock-Auto-Expire
+  248:   TRADING_FARM_ACTIVE_EXEC:         false,   // false=registry-only, true=routing (v2)
+  249: 
+  250:   // Phase 6 Teil 6 [15.05.2026] MULTI-EXCHANGE-REGISTRY — Public-Ticker (READ-ONLY)
+  251:   MULTI_EXCHANGE_ENABLED:           true,    // compare only, no routing
+  252:   // LIVE-Ready (15.05.2026): Routing-Feature-Toggle — kategorisch false bis CCXT + F2
+  253:   MULTI_EXCHANGE_ROUTING_ENABLED:   false,   // hard-block für placeBestExecutionOrder
+  254: 
+  255:   // Phase 6 Teil X1 [15.05.2026] LSTM/Transformer SHADOW (skeleton, no tfjs install)
+  256:   LSTM_SHADOW_ENABLED:              true,
+  257:   LSTM_SHADOW_ACTIVE_PREDICTION:    false,    // false=record-only, true=use prediction
+  258:   LSTM_SHADOW_LATENCY_LIMIT_MS:     200,      // skip wenn predict>200ms (per directive)
+  259:   LSTM_SHADOW_REQUIRES_TFJS:        false,    // v1 uses statistical surrogate
+  260: 
+  261:   // Phase 6 Teil X6 [15.05.2026] RL Agent SHADOW + Auto-Activation
+  262:   RL_SHADOW_ENABLED:                true,
+  263:   RL_AUTO_ACTIVATE_AFTER:           500,     // shadow-decision count threshold per directive
+  264:   RL_ACTIVE_DECISION_MAKING:        false,   // true after 500 shadow + audit ok
+  265: 
+  266:   // Phase 6 Teil 8 [15.05.2026] DEFI/ON-CHAIN — Read-Only Wallet-Watcher
+  267:   DEFI_WATCHER_ENABLED:             true,
+  268:   DEFI_RPC_URL:                     'https://ethereum.publicnode.com',  // fallback: cloudflare-eth.com
+  269:   DEFI_RPC_FALLBACK_URL:            'https://cloudflare-eth.com',
+  270:   DEFI_PRIVATE_KEY_HANDLING:        false,    // permanent off — never read/write private keys
+  271:   DEFI_CHAIN_ID:                    1,        // Ethereum Mainnet
+  272: 
+  273:   // Phase 6 Teil 7 [15.05.2026] CUSTOM SCRIPTING via isolated-vm (Sandbox)
+  274:   CUSTOM_SCRIPT_ENABLED:            true,    // re-enabled with isolated-vm
+  275:   CUSTOM_SCRIPT_AUDIT_PASSED:       false,   // set true after 8-test pass
+  276:   CUSTOM_SCRIPT_AUDIT_REASON:       'isolated-vm 5.0.4 — V8 Isolate isolation, see /api/scripts/security_audit',
+  277:   CUSTOM_SCRIPT_MEMORY_MB:          16,    // lower to constrain blast-radius (isolate limit is "guideline")
+  278:   CUSTOM_SCRIPT_TIMEOUT_MS:         100,
+  279:   CUSTOM_SCRIPT_MAX_LEN:            4000,
+  280: 
+  281:   // Phase 6 Teil Y1 [15.05.2026] EXCHANGE FAILOVER DETECTION (log-only v1)
+  282:   EXCHANGE_FAILOVER_ENABLED:        true,
+  283:   EXCHANGE_FAILOVER_INTERVAL_MS:    30000,
+  284:   EXCHANGE_FAILOVER_FAIL_THRESHOLD: 3,       // 3 consecutive fails → DEGRADED
+  285:   EXCHANGE_FAILOVER_DOWN_THRESHOLD: 5,       // 5 consecutive fails → DOWN
+  286:   EXCHANGE_FAILOVER_RECOVER_THRESHOLD: 2,    // 2 consecutive OK → HEALTHY
+  287:   EXCHANGE_FAILOVER_ACTIVE_SWITCH:  false,   // false=log_only, true=apply (v2)
+  288:   EXCHANGE_FAILOVER_PRIORITY:       ['bitget','binance','kraken','coinbase'],
+  289: 
+  290:   // X2 [15.05.2026] STRATEGY ROTATION — Meta-Layer (read-only v1)
+  291:   // DEMO=LIVE: identisch, beeinflusst Trade-Logik (noch) nicht
+  292:   STRATEGY_ROTATION_ENABLED:        true,    // compute + expose
+  293:   STRATEGY_ROTATION_ACTIVE_SWITCH:  true,    // VISION Stufe 1.1 [16.05.2026]: aktiv (war false=log_only)
+  294: 
+  295:   // VISION Stufe 2 [16.05.2026] METABRAIN
+  296:   METABRAIN_ENABLED:                true,
+  297:   METABRAIN_OVERRIDE_BIAS_MIN:      0.65,   // confidence-Schwelle für Strategy-Override per Performance
+  298:   METABRAIN_OVERRIDE_MIN_TRADES:    10,     // Trades pro regime für Override-Erlaubnis
+  299: 
+  300:   // VISION Stufe 3 [16.05.2026] 5 Strategien
+
+=================================================================
+9. PORT-BINDUNG
+=================================================================
+
+--- grep -n 'app.listen|server.listen|HOST|0.0.0.0|127.0.0.1|localhost' server.js ---
+6143:          findings.push({type:'GHOSTS', count:ghosts.length});
+25329:// Endpoint: ws://localhost:3000/ws/brain
+25675:  const _httpServer = app.listen(CFG.PORT, ()=>{
+25684:  V9 PRO | ${CFG.DEPLOY_MODE} | ${CFG.API_KEY?'LIVE':'DEMO'} | http://localhost:${CFG.PORT}
+
+--- Pro Treffer ±5 Zeilen Kontext ---
+
+=== server.js:25675 (app.listen-Kontext) ===
+25670:   if (!FreqAiFeatures) return res.status(503).json({ ok:false, error:'MODULE_NOT_LOADED' });
+25671:   try { res.json({ ok:true, importance: await FreqAiFeatures.computeImportance(req.params.symbol, { Bitget, granularity: req.query.granularity }, +req.query.horizon || 5) }); }
+25672:   catch(e) { res.status(500).json({ ok:false, error:e.message }); }
+25673: });
+25674: 
+25675:   const _httpServer = app.listen(CFG.PORT, ()=>{
+25676:     console.log(`
+25677:   ███╗   ██╗███████╗██╗  ██╗██╗   ██╗███████╗  ██████╗ ██████╗  ██████╗
+25678:   ████╗  ██║██╔════╝╚██╗██╔╝██║   ██║██╔════╝  ██╔══██╗██╔══██╗██╔═══██╗
+25679:   ██╔██╗ ██║█████╗   ╚███╔╝ ██║   ██║███████╗  ██████╔╝██████╔╝██║   ██║
+25680:   ██║╚██╗██║██╔══╝   ██╔██╗ ██║   ██║╚════██║  ██╔═══╝ ██╔══██╗██║   ██║
+
+=================================================================
+10. ENV-VARIABLEN
+=================================================================
+
+--- .env.example (vollständig) ---
+BITGET_API_KEY=
+BITGET_SECRET_KEY=
+BITGET_PASSPHRASE=
+TELEGRAM_TOKEN=
+TELEGRAM_CHAT_ID=
+DEPLOY_MODE=PAPER
+PORT=3000
+CRYPTOPANIC_API_KEY=
+
+# F21 [15.05.2026] Discord-Webhook (optional, additiv zu Telegram)
+DISCORD_WEBHOOK_URL=
+DISCORD_ENABLED=false
+
+--- .env (NUR Variablennamen, KEINE Werte) ---
+
+--- .env (NUR Variablennamen, NACHTRAG, KEINE Werte) ---
+BITGET_API_KEY
+BITGET_SECRET_KEY
+BITGET_PASSPHRASE
+DEPLOY_MODE
+PORT
+TELEGRAM_TOKEN
+TELEGRAM_CHAT_ID
+
+=================================================================
+11. STATUS-CHECK NACH AUFKLAERUNG
+=================================================================
+
+--- pm2 status ---
+┌────┬──────────────────┬─────────────┬─────────┬─────────┬──────────┬────────┬──────┬───────────┬──────────┬──────────┬──────────┬──────────┐
+│ id │ name             │ namespace   │ version │ mode    │ pid      │ uptime │ ↺    │ status    │ cpu      │ mem      │ user     │ watching │
+├────┼──────────────────┼─────────────┼─────────┼─────────┼──────────┼────────┼──────┼───────────┼──────────┼──────────┼──────────┼──────────┤
+│ 0  │ nexus            │ default     │ 1.0.0   │ fork    │ 95222    │ 39m    │ 101  │ online    │ 0%       │ 133.0mb  │ christi… │ disabled │
+│ 2  │ nexus_sub_1      │ default     │ 1.0.0   │ fork    │ 0        │ 0      │ 0    │ stopped   │ 0%       │ 0b       │ christi… │ disabled │
+└────┴──────────────────┴─────────────┴─────────┴─────────┴──────────┴────────┴──────┴───────────┴──────────┴──────────┴──────────┴──────────┘
+Module
+┌────┬──────────────────────────────┬───────────────┬──────────┬──────────┬──────┬──────────┬──────────┬──────────┐
+│ id │ module                       │ version       │ pid      │ status   │ ↺    │ cpu      │ mem      │ user     │
+├────┼──────────────────────────────┼───────────────┼──────────┼──────────┼──────┼──────────┼──────────┼──────────┤
+│ 1  │ pm2-logrotate                │ 3.0.0         │ 14963    │ online   │ 4    │ 0%       │ 26.2mb   │ christi… │
+└────┴──────────────────────────────┴───────────────┴──────────┴──────────┴──────┴──────────┴──────────┴──────────┘
+
+--- /api/status (first 500 chars) ---
+{"mode":"DEMO","deployMode":"PAPER","uptime":2380.072195375,"state":"NORMAL","balance":{"spot":56.70946933532,"futures":0,"free":56.70946933532,"locked":0,"usable":56.70946933532,"reserve":39.696628534724,"trading":17.012840800596,"effective":17.012840800596,"stabilityScore":1,"valid":true,"lastFetched":"2026-05-18T06:27:40.847Z","sessionStart":56.70946933532,"dailyPnL":0,"peakEquity":56.70946933532},"noTrade":{"allowTrade":false,"gates":{"balanceValid":true,"marketDataFresh":true,"noActiveIncid
+
+--- Konsolidierter Status ---
+PM2 R: 101
+Wallet Total: 999.024025457343
+Drift: 0
+DEPLOY_MODE (.env): PAPER
+AladdinBrain 5min: 136
+
+=================================================================
+ENDE AUFKLAERUNG — READ-ONLY abgeschlossen
+=================================================================
+Datei-Größe Bot währenddessen UNVERÄNDERT (kein Edit, kein Restart, kein git commit)

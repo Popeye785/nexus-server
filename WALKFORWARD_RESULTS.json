@@ -1,0 +1,125 @@
+[
+  {
+    "rank": 1,
+    "params": {
+      "news_weight": 0.5924145688620425,
+      "fng_weight": 0.046450412719997725,
+      "funding_weight": 0.6075448519014384,
+      "threshold": 0.1267358556592812
+    },
+    "folds": [
+      {
+        "fold": "Fold1",
+        "sortino": 310.719,
+        "sharpe": 155.094,
+        "match_rate": 0.799,
+        "n": 5022
+      },
+      {
+        "fold": "Fold2",
+        "sortino": 102.322,
+        "sharpe": 46.474,
+        "match_rate": 0.263,
+        "n": 7209
+      },
+      {
+        "fold": "Fold3",
+        "sortino": 122.329,
+        "sharpe": 52.688,
+        "match_rate": 0.315,
+        "n": 7063
+      },
+      {
+        "fold": "Fold4",
+        "sortino": 62.113,
+        "sharpe": 33.908,
+        "match_rate": 0.16,
+        "n": 6999
+      }
+    ],
+    "positive_sortino_folds": 4,
+    "robust": true
+  },
+  {
+    "rank": 2,
+    "params": {
+      "news_weight": 0.7616780412663193,
+      "fng_weight": 0.004146152740153612,
+      "funding_weight": 0.8589265637486657,
+      "threshold": 0.13967189929243587
+    },
+    "folds": [
+      {
+        "fold": "Fold1",
+        "sortino": 310.719,
+        "sharpe": 155.094,
+        "match_rate": 0.799,
+        "n": 5022
+      },
+      {
+        "fold": "Fold2",
+        "sortino": 102.322,
+        "sharpe": 46.474,
+        "match_rate": 0.263,
+        "n": 7209
+      },
+      {
+        "fold": "Fold3",
+        "sortino": 122.329,
+        "sharpe": 52.688,
+        "match_rate": 0.315,
+        "n": 7063
+      },
+      {
+        "fold": "Fold4",
+        "sortino": 62.113,
+        "sharpe": 33.908,
+        "match_rate": 0.16,
+        "n": 6999
+      }
+    ],
+    "positive_sortino_folds": 4,
+    "robust": true
+  },
+  {
+    "rank": 3,
+    "params": {
+      "news_weight": 0.6938852204041466,
+      "fng_weight": 0.027627795687594308,
+      "funding_weight": 0.9174267428081474,
+      "threshold": 0.1580299624123941
+    },
+    "folds": [
+      {
+        "fold": "Fold1",
+        "sortino": 310.719,
+        "sharpe": 155.094,
+        "match_rate": 0.799,
+        "n": 5022
+      },
+      {
+        "fold": "Fold2",
+        "sortino": 102.322,
+        "sharpe": 46.474,
+        "match_rate": 0.263,
+        "n": 7209
+      },
+      {
+        "fold": "Fold3",
+        "sortino": 122.329,
+        "sharpe": 52.688,
+        "match_rate": 0.315,
+        "n": 7063
+      },
+      {
+        "fold": "Fold4",
+        "sortino": 62.113,
+        "sharpe": 33.908,
+        "match_rate": 0.16,
+        "n": 6999
+      }
+    ],
+    "positive_sortino_folds": 4,
+    "robust": true
+  }
+]

@@ -1,0 +1,21 @@
+2026-05-20T13:29:15	stufe1_hmm_adaptive_weights	deployed	hmm_module+adaptive_resolver+brain_integration	PID=8771	R=170
+2026-05-20T13:35:55	stufe3_finbert_lexicon_sentiment	deployed	finbert_lexicon+classifier_extension+aggregator_polarity+brain_modulation	PID=12490	R=172
+2026-05-20T14:12:21	stufe5_blackswan_replay	deployed	blackswan_replay_5events+api_endpoints	PID=27188	R=173
+2026-05-20T14:29:59	stufe8_orderbook_history	deployed	ob_snapshots_module+cron_30s+brain_subsource_obImbalance+3_api_endpoints	PID=33316	R=174
+2026-05-20T14:34:14	stufe4_sortino_router	deployed	sortino_module+shadow_mode+4_api_endpoints+productive_autoswitch_at_14d	PID=35770	R=175
+2026-05-20T14:38:58	stufe6_hrp_allocator	deployed	hrp_module+shadow_mode+3_api_endpoints+lopez_de_prado_2016	PID=37622	R=176
+2026-05-20T14:44:14	stufe7_onchain_integration	deployed	mempool_space+blockchain_info+etherscan_gas+brain_subsource_onChain+2_api_endpoints	PID=39980	R=177
+2026-05-20T14:48:31	stufe9_multi_exchange_router	deployed	sor_paper_mode+5_exchanges+4_api_endpoints+kraken_edge_8bp_observed	PID=41692	R=178
+2026-05-20T14:52:02	stufe10_tft_forecaster	deployed	tft_ensemble_phase1+3_horizons+hmm_conditioned+lstm_hook+3_api_endpoints	PID=43592	R=179
+2026-05-20T14:54:42	mega_roadmap_complete	10_stufen_deployed	10_modules+21_api_endpoints+11_db_tables+20_snapshots+11_endberichte	PID=43592	R=179
+2026-05-20T15:29:42	audit_fix_phase1_subsources	deployed	monteCarlo_lowrisk_to_neutral+smartMoney_strenger+newsRisk_logscale+etfFlows_stale_neutral	PID=59205
+2026-05-20T15:40:37	audit_fix_mega_complete	9phases_done	P1_subsource_var+P2_floor_intact+P3_tft_brain+P4_bot_type_trigger+P5_notbremse_-25+P6_hmm_relax+P7_known+P8_known	PID=63036
+2026-05-20T16:47:46	mega5_p1_etherscan	deployed	etherscan_key_env+whale_detection_100eth+30min_cron	PID=91203
+2026-05-20T16:50:16	mega5_p2_reserve_p3_waechter_p4_lstm	option_A_existing	reserve_70_30_already_in_code+waechter_already_productive+lstm_deferred_cloud_recommended	PID=91203
+2026-05-20T16:54:45	mega5_p5_day_zero_reset	complete	18_tables_archived+wallet_reset_70_30+brain_models_retained+candle_cache_intact	PID=93986
+2026-05-21T07:02:08	mega_reserve_anomaly	deployed	reserve_split_slider_20-80_range+anomaly_z5_cluster3_retrigger30min	PID=32196
+2026-05-21T11:44:41	outcome_tracker_anomaly_ui	deployed	decision_outcome_module+3_apis+ui_kapital_tab_anomaly_settings+brain_acc_1h_39pct	PID=44981
+2026-05-21T12:24:11	wallet_initial_split_correction	complete	trading_300->1000+reserve_700->0+audit_ledger_entry+70-30_only_on_realized_pnl	PID=60667
+2026-05-21T21:40:34	buy_bias_fix_3steps	deployed	fg_lt30_neutral+smartmoney_trend_0.003+hmm_diag_0.45_alpha_0.55	PID=70308
+2026-05-23T11:27:59	prio5_all_fixes	deployed	imMarkt_capital_pool+news_dedup+dca_pnl_tracking+atom_grid_close+monitoring	PID=88241
+2026-05-23T12:36:51	stufe_c_complete	schema+backfill+cron_dry	276.20_USDT_backfilled_70-30+realizer_module_deployed_dry_run+3_apis	PID=16551

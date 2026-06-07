@@ -1,0 +1,331 @@
+- generic [ref=e1]:
+  - text: e
+  - generic [ref=e2]:
+    - generic [ref=e3]:
+      - generic [ref=e4]:
+        - text: NEXUS
+        - emphasis [ref=e5]: BOT
+        - text: V9 ULTIMATE
+      - generic [ref=e6]:
+        - generic [ref=e7]:
+          - generic [ref=e8]: BTC/USDT
+          - generic [ref=e9]: 61.710,69
+        - button "🤖 AUTONOM" [ref=e309] [cursor=pointer]
+        - button "🔵 DEMO" [ref=e11] [cursor=pointer]
+        - generic [ref=e13]: ONLINE
+    - generic [ref=e15]:
+      - generic [ref=e16]:
+        - button "📊 MARKT" [ref=e17] [cursor=pointer]:
+          - generic [ref=e18]: 📊
+          - generic [ref=e19]: MARKT
+        - button "🐋 WHALE" [ref=e20] [cursor=pointer]:
+          - generic [ref=e21]: 🐋
+          - generic [ref=e22]: WHALE
+        - button "📈 CHART" [ref=e23] [cursor=pointer]:
+          - generic [ref=e24]: 📈
+          - generic [ref=e25]: CHART
+        - button "🔬 ANALYSE" [ref=e26] [cursor=pointer]:
+          - generic [ref=e27]: 🔬
+          - generic [ref=e28]: ANALYSE
+        - button "⚡ SIGNAL" [ref=e29] [cursor=pointer]:
+          - generic [ref=e30]: ⚡
+          - generic [ref=e31]: SIGNAL
+        - button "📖 ORDERS" [ref=e32] [cursor=pointer]:
+          - generic [ref=e33]: 📖
+          - generic [ref=e34]: ORDERS
+        - button "🧮 INDIKATOREN" [ref=e35] [cursor=pointer]:
+          - generic [ref=e36]: 🧮
+          - generic [ref=e37]: INDIKATOREN
+      - generic [ref=e38]:
+        - button "⚡ STATUS" [ref=e39] [cursor=pointer]:
+          - generic [ref=e40]: ⚡
+          - generic [ref=e41]: STATUS
+        - button "⚙️ BOTS" [active] [ref=e42] [cursor=pointer]:
+          - generic [ref=e43]: ⚙️
+          - generic [ref=e44]: BOTS
+        - button "🪙 COINS" [ref=e45] [cursor=pointer]:
+          - generic [ref=e46]: 🪙
+          - generic [ref=e47]: COINS
+        - button "💰 KAPITAL" [ref=e48] [cursor=pointer]:
+          - generic [ref=e49]: 💰
+          - generic [ref=e50]: KAPITAL
+        - button "📰 NEWS" [ref=e51] [cursor=pointer]:
+          - generic [ref=e52]: 📰
+          - generic [ref=e53]: NEWS
+        - button "🧠 KI-DASH" [ref=e54] [cursor=pointer]:
+          - generic [ref=e55]: 🧠
+          - generic [ref=e56]: KI-DASH
+        - button "🔧 ARS" [ref=e57] [cursor=pointer]:
+          - generic [ref=e58]: 🔧
+          - generic [ref=e59]: ARS
+        - button "🛡 SICHERHEIT" [ref=e60] [cursor=pointer]:
+          - generic [ref=e61]: 🛡
+          - generic [ref=e62]: SICHERHEIT
+        - button "🧬 ML" [ref=e63] [cursor=pointer]:
+          - generic [ref=e64]: 🧬
+          - generic [ref=e65]: ML
+        - button "🛠 SYSTEM" [ref=e66] [cursor=pointer]:
+          - generic [ref=e67]: 🛠
+          - generic [ref=e68]: SYSTEM
+        - button "🔎 DIAGNOSE" [ref=e69] [cursor=pointer]:
+          - generic [ref=e70]: 🔎
+          - generic [ref=e71]: DIAGNOSE
+        - button "🌐 EXCHG" [ref=e72] [cursor=pointer]:
+          - generic [ref=e73]: 🌐
+          - generic [ref=e74]: EXCHG
+        - button "🧩 STRATBUILD" [ref=e75] [cursor=pointer]:
+          - generic [ref=e76]: 🧩
+          - generic [ref=e77]: STRATBUILD
+        - button "🔑 CONFIG" [ref=e78] [cursor=pointer]:
+          - generic [ref=e79]: 🔑
+          - generic [ref=e80]: CONFIG
+  - text: // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // //
+  - generic [ref=e310]:
+    - generic [ref=e311]:
+      - generic [ref=e312]:
+        - generic [ref=e313]:
+          - text: ⚙️ NEXUS V9
+          - emphasis [ref=e314]: PORTFOLIO
+        - generic [ref=e315]: 15:48:47
+        - generic [ref=e316]: LIVE
+      - generic [ref=e317]:
+        - generic [ref=e318]:
+          - generic [ref=e319]: Investment
+          - generic [ref=e320]: 230.00 USDT
+          - generic [ref=e321]: 21.2 % im Markt
+        - generic [ref=e324]:
+          - generic [ref=e325]: Current PnL
+          - generic [ref=e326]: +15.78 USDT
+          - generic [ref=e327]: +0.00 %
+        - generic [ref=e328]:
+          - generic [ref=e329]: Total Heute
+          - generic [ref=e330]: +13.97 USDT
+          - generic [ref=e331]: "Realized: +40.58"
+      - generic [ref=e332]:
+        - generic [ref=e333]: 💎 Vermögen total
+        - generic [ref=e334]:
+          - generic [ref=e335]: 1086.54 USDT
+          - generic [ref=e336]: "Live: 1102.32 USDT"
+          - generic [ref=e337]: "unrealized: +15.78 USDT"
+        - generic [ref=e338]: = Cash + Reserve + Im Markt
+      - generic [ref=e339]:
+        - generic [ref=e340]: 💰 Kapital-Flow
+        - generic [ref=e341]:
+          - generic [ref=e342]:
+            - generic [ref=e343]: Bitget verfügbar
+            - generic [ref=e344]: 0.00 USDT
+          - generic [ref=e345]: ↓
+          - generic [ref=e346]:
+            - generic [ref=e347]: Trading-Topf
+            - generic [ref=e348]: 1058.22 USDT
+          - generic [ref=e349]: ↓
+          - generic [ref=e350]:
+            - generic [ref=e351]: Im Markt (offene Positions) 4 (S0 / D1 / G2 / I1)
+            - generic [ref=e352]: 230.00 USDT
+          - generic [ref=e353]:
+            - generic [ref=e354]: Reserve (sicher)
+            - generic [ref=e355]: 28.32 USDT
+      - generic [ref=e356]:
+        - generic [ref=e357]: 📊 24H Activity (1070 Trades)
+        - generic [ref=e358]:
+          - generic "1 Trades" [ref=e359]
+          - generic "0 Trades" [ref=e360]
+          - generic "0 Trades" [ref=e361]
+          - generic "1 Trades" [ref=e362]
+          - generic "0 Trades" [ref=e363]
+          - generic "0 Trades" [ref=e364]
+          - generic "1 Trades" [ref=e365]
+          - generic "0 Trades" [ref=e366]
+          - generic "0 Trades" [ref=e367]
+          - generic "1 Trades" [ref=e368]
+          - generic "0 Trades" [ref=e369]
+          - generic "1 Trades" [ref=e370]
+          - generic "1 Trades" [ref=e371]
+          - generic "0 Trades" [ref=e372]
+          - generic "5 Trades" [ref=e373]
+          - generic "0 Trades" [ref=e374]
+          - generic "0 Trades" [ref=e375]
+          - generic "1 Trades" [ref=e376]
+          - generic "1 Trades" [ref=e377]
+          - generic "0 Trades" [ref=e378]
+          - generic "0 Trades" [ref=e379]
+          - generic "101 Trades" [ref=e380]
+          - generic "480 Trades" [ref=e381]
+          - generic "476 Trades" [ref=e382]
+      - generic [ref=e383]:
+        - generic [ref=e384]: 🎯 Performance
+        - generic [ref=e385]:
+          - generic [ref=e386]:
+            - generic [ref=e387]: Trades Total
+            - generic [ref=e388]: "13"
+          - generic [ref=e389]:
+            - generic [ref=e390]: Win Rate
+            - generic [ref=e391]: 37.2 %
+          - generic [ref=e392]:
+            - generic [ref=e393]: Slots (Gesamt)
+            - generic [ref=e394]: 4/5
+      - generic [ref=e396]:
+        - generic [ref=e397]: WS connected
+        - generic [ref=e399]: Watchdog
+        - generic [ref=e401]: Brain
+        - generic [ref=e403]: Guardian
+        - generic [ref=e407]: RANGING (74%)
+    - generic [ref=e408]:
+      - generic [ref=e409]: 🤖 BotType-Filter
+      - generic [ref=e410]:
+        - button "Alle 4" [ref=e411] [cursor=pointer]
+        - button "SINGLE 0" [ref=e412] [cursor=pointer]
+        - button "GRID 2" [ref=e413] [cursor=pointer]
+        - button "DCA 1" [ref=e414] [cursor=pointer]
+        - button "INFGRID 1" [ref=e415] [cursor=pointer]
+    - generic [ref=e416]:
+      - generic [ref=e417]:
+        - generic [ref=e418]:
+          - generic [ref=e419]:
+            - text: SUIUSDT
+            - generic [ref=e420]: INFGRID
+            - generic [ref=e421]: RUNNING
+          - generic [ref=e423]: 550min
+        - generic [ref=e424]:
+          - generic [ref=e425]:
+            - generic [ref=e426]: Entry
+            - generic [ref=e427]: "0.7516"
+          - generic [ref=e428]:
+            - generic [ref=e429]: Live ◉
+            - generic [ref=e430]: "0.7442"
+            - generic [ref=e431]: +0.00%
+          - generic [ref=e432]:
+            - generic [ref=e433]: Stop-Loss
+            - generic [ref=e434]: "0.7273"
+            - generic [ref=e435]: "-3.23%"
+          - generic [ref=e436]:
+            - generic [ref=e437]: Take-Profit
+            - generic [ref=e438]: "0.7759"
+            - generic [ref=e439]: +3.23%
+        - generic [ref=e440]:
+          - generic [ref=e441]:
+            - generic [ref=e442]: +0.09 USDT
+            - generic [ref=e443]: +0.00% · 50.00 USDT (4.6%)
+          - generic [ref=e444]:
+            - text: ● LIVE
+            - text: update 2s
+        - generic [ref=e445]:
+          - button "⏸ Pause" [ref=e446]
+          - button "✕ Close" [ref=e447]
+        - generic [ref=e448]: 🔲 INFGRID 10/10 Levels · Range 0.73–0.78 · Fills 10
+        - generic [ref=e449]: "Brain (aktuell): 2B/1S/2N (5 aktiv)"
+      - generic [ref=e450]:
+        - generic [ref=e451]:
+          - generic [ref=e452]:
+            - text: NEARUSDT
+            - generic [ref=e453]: GRID
+            - generic [ref=e454]: RUNNING
+          - generic [ref=e456]: 1695min
+        - generic [ref=e457]:
+          - generic [ref=e458]:
+            - generic [ref=e459]: Entry
+            - generic [ref=e460]: "1.94"
+          - generic [ref=e461]:
+            - generic [ref=e462]: Live ◉
+            - generic [ref=e463]: "1.92"
+            - generic [ref=e464]: +0.00%
+          - generic [ref=e465]:
+            - generic [ref=e466]: Stop-Loss
+            - generic [ref=e467]: "1.83"
+            - generic [ref=e468]: "-5.65%"
+          - generic [ref=e469]:
+            - generic [ref=e470]: Take-Profit
+            - generic [ref=e471]: "2.05"
+            - generic [ref=e472]: +5.65%
+        - generic [ref=e473]:
+          - generic [ref=e474]:
+            - generic [ref=e475]: +11.38 USDT
+            - generic [ref=e476]: +0.00% · 50.00 USDT (4.6%)
+          - generic [ref=e477]:
+            - text: ● LIVE
+            - text: update 2s
+        - generic [ref=e478]:
+          - button "⏸ Pause" [ref=e479]
+          - button "✕ Close" [ref=e480]
+        - generic [ref=e481]: 🔲 GRID 531/10 Levels · Range 1.83–2.05 · Fills 531
+        - generic [ref=e482]: "Brain (aktuell): 1B/1S/3N (5 aktiv)"
+      - generic [ref=e483]:
+        - generic [ref=e484]:
+          - generic [ref=e485]:
+            - text: BNBUSDT
+            - generic [ref=e486]: GRID
+            - generic [ref=e487]: RUNNING
+          - generic [ref=e489]: 3077min
+        - generic [ref=e490]:
+          - generic [ref=e491]:
+            - generic [ref=e492]: Entry
+            - generic [ref=e493]: "592.70"
+          - generic [ref=e494]:
+            - generic [ref=e495]: Live ◉
+            - generic [ref=e496]: "588.30"
+            - generic [ref=e497]: +0.00%
+          - generic [ref=e498]:
+            - generic [ref=e499]: Stop-Loss
+            - generic [ref=e500]: "573.70"
+            - generic [ref=e501]: "-3.21%"
+          - generic [ref=e502]:
+            - generic [ref=e503]: Take-Profit
+            - generic [ref=e504]: "611.70"
+            - generic [ref=e505]: +3.21%
+        - generic [ref=e506]:
+          - generic [ref=e507]:
+            - generic [ref=e508]: +5.16 USDT
+            - generic [ref=e509]: +0.00% · 50.00 USDT (4.6%)
+          - generic [ref=e510]:
+            - text: ● LIVE
+            - text: update 2s
+        - generic [ref=e511]:
+          - button "⏸ Pause" [ref=e512]
+          - button "✕ Close" [ref=e513]
+        - generic [ref=e514]: 🔲 GRID 531/10 Levels · Range 573.70–611.70 · Fills 531
+        - generic [ref=e515]: "Brain (aktuell): 3B/0S/2N (5 aktiv)"
+      - generic [ref=e516]:
+        - generic [ref=e517]:
+          - generic [ref=e518]:
+            - text: AVAXUSDT
+            - generic [ref=e519]: DCA
+            - generic [ref=e520]: RUNNING
+          - generic [ref=e522]: 1430min
+        - generic [ref=e523]:
+          - generic [ref=e524]:
+            - generic [ref=e525]: Avg Buy
+            - generic [ref=e526]: "6.73"
+          - generic [ref=e527]:
+            - generic [ref=e528]: Live ◉
+            - generic [ref=e529]: "6.66"
+            - generic [ref=e530]: "-1.08%"
+          - generic [ref=e531]:
+            - generic [ref=e532]: Max DD
+            - generic [ref=e533]: 20%
+            - generic [ref=e534]: aktuell 0.0%
+          - generic [ref=e535]:
+            - generic [ref=e536]: Take-Profit
+            - generic [ref=e537]: "6.94"
+            - generic [ref=e538]: +3%
+        - generic [ref=e539]:
+          - generic [ref=e540]:
+            - generic [ref=e541]: Distanz Avg→TP
+            - generic [ref=e542]: 0.0%
+          - generic [ref=e545]:
+            - generic [ref=e546]: Avg
+            - generic [ref=e547]: TP
+        - generic [ref=e548]:
+          - generic [ref=e549]:
+            - generic [ref=e550]: "-0.86 USDT"
+            - generic [ref=e551]: "-1.08% · 80.00 USDT (7.4%)"
+          - generic [ref=e552]:
+            - text: ● LIVE
+            - text: update 2s
+        - generic [ref=e553]:
+          - button "▶ Force Buy" [ref=e554]
+          - button "⏸ Pause" [ref=e555]
+          - button "✕ Close" [ref=e556]
+        - generic [ref=e557]: 📥 DCA Iter 4/12 · Avg 6.7345 · nächster Buy in 11min
+        - generic [ref=e558]: "Brain: 0B/5S/0N (5 aktiv) → 1B/2S/2N (5 aktiv)"
+  - text: // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // //
+  - generic: NEXUS BOT V9 ULTIMATE · PRIVAT

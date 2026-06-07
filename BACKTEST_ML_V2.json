@@ -1,0 +1,14 @@
+{
+  "model": "XGBoost-Champion (acc 52.32%)",
+  "train_samples": 7617,
+  "test_samples": 4760,
+  "trades": 490,
+  "wins": 190,
+  "losses": 300,
+  "winRate": 0.3877551020408163,
+  "sharpe": 2.8085111702057013,
+  "maxDD": 0.01481199848532872,
+  "pf": 1.1602687458511483,
+  "totalReturn": 0.052702567960693614,
+  "finalEq": 1052.7025679606936
+}

@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "skills": {
+    "code-audit": {
+      "source": "variant-systems/skills",
+      "sourceType": "github",
+      "skillPath": "code-audit/SKILL.md",
+      "computedHash": "153e10d780ed3817dcbd70c0e7e0572f6461327d665991ddeff41f0f55b0aa56"
+    }
+  }
+}
